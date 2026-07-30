@@ -4,6 +4,13 @@ from dataclasses import dataclass
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.dns import DnsManagementClient
+from azure.mgmt.dns.models import (
+    AaaaRecord,
+    ARecord,
+    CnameRecord,
+    RecordSet,
+    TxtRecord,
+)
 
 
 @dataclass
@@ -45,3 +52,49 @@ class DnsService:
                 )
             )
         return result
+
+    def create_or_update_record(
+        self,
+        resource_group: str,
+        zone: str,
+        label: str,
+        record_type: str,
+        value: str,
+        ttl: int = 300,
+    ) -> None:
+        """Create or overwrite a single-value DNS record set."""
+        rs = RecordSet(ttl=ttl)
+        rt = record_type.upper()
+        if rt == "A":
+            rs.a_records = [ARecord(ipv4_address=value)]
+        elif rt == "AAAA":
+            rs.aaaa_records = [AaaaRecord(ipv6_address=value)]
+        elif rt == "CNAME":
+            rs.cname_record = CnameRecord(cname=value)
+        elif rt == "TXT":
+            rs.txt_records = [TxtRecord(value=[value])]
+        else:
+            raise ValueError(f"Unsupported record type for direct implementation: {record_type}")
+
+        self._client.record_sets.create_or_update(
+            resource_group_name=resource_group,
+            zone_name=zone,
+            relative_record_set_name=label,
+            record_type=rt,
+            parameters=rs,
+        )
+
+    def delete_record(
+        self,
+        resource_group: str,
+        zone: str,
+        label: str,
+        record_type: str,
+    ) -> None:
+        """Delete a DNS record set."""
+        self._client.record_sets.delete(
+            resource_group_name=resource_group,
+            zone_name=zone,
+            relative_record_set_name=label,
+            record_type=record_type.upper(),
+        )

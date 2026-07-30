@@ -98,6 +98,21 @@ async def submit_request(request: Request) -> HTMLResponse:
             status_code=422,
         )
 
+    ttl = int(form.get("ttl", "300") or 300)
+
+    # ── Execute DNS change ────────────────────────────────────────────────
+    dns_error: str | None = None
+    try:
+        dns = DnsService(settings.dns_subscription_id)
+        if action == "delete":
+            dns.delete_record(settings.dns_resource_group, zone, label, record_type)
+        else:
+            dns.create_or_update_record(
+                settings.dns_resource_group, zone, label, record_type, value, ttl
+            )
+    except Exception as exc:
+        dns_error = str(exc)
+
     return _templates.TemplateResponse(
         "confirmation.html",
         {
@@ -110,6 +125,7 @@ async def submit_request(request: Request) -> HTMLResponse:
             "label": label,
             "record_type": record_type,
             "value": value,
-            "ttl": form.get("ttl", "300"),
+            "ttl": ttl,
+            "dns_error": dns_error,
         },
     )

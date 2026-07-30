@@ -6,9 +6,18 @@
 <div class="d-flex justify-content-center align-items-center" style="min-height:60vh">
   <div class="card shadow-sm" style="max-width:540px;width:100%">
     <div class="card-body text-center py-5">
-      <div class="display-1 mb-3">&#x1F4EC;</div>
-      <h1 class="h4 fw-bold">Request Submitted</h1>
-      <p class="text-muted mt-2">Your DNS change request has been logged and is pending review.</p>
+      <div class="display-1 mb-3">{% if dns_error %}&#x274C;{% else %}&#x2705;{% endif %}</div>
+      <h1 class="h4 fw-bold">{% if dns_error %}DNS Change Failed{% else %}DNS Change Applied{% endif %}</h1>
+      <p class="text-muted mt-2">
+        {% if dns_error %}
+          The request was validated but the DNS change could not be applied.
+        {% else %}
+          The record has been {{ action }}d in Azure DNS.
+        {% endif %}
+      </p>
+      {% if dns_error %}
+      <div class="alert alert-danger text-start small mt-3">{{ dns_error }}</div>
+      {% endif %}
       <hr class="my-4" />
       <table class="table table-sm text-start">
         <tr><th>Zone</th><td>{{ zone }}</td></tr>
