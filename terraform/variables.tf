@@ -9,12 +9,6 @@ variable "resource_group_name" {
   default     = "bnlwe-fs01-n-00000-cloudbau-rg"
 }
 
-variable "location" {
-  description = "Azure region."
-  type        = string
-  default     = "West Europe"
-}
-
 variable "acr_name" {
   description = "Azure Container Registry name (globally unique, alphanumeric only)."
   type        = string
