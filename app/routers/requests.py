@@ -53,23 +53,6 @@ async def submit_request(request: Request) -> HTMLResponse:
     client_ip = _get_client_ip(request)
     form = await request.form()
 
-    # ── Rate limit ────────────────────────────────────────────────────────
-    if _svc.is_rate_limited(client_ip):
-        return _templates.TemplateResponse(
-            "request.html",
-            {
-                "request": request,
-                "app_name": settings.app_name,
-                "app_version": settings.app_version,
-                "environment": settings.environment,
-                "zones": [],
-                "blacklisted_json": json.dumps(list(BLACKLISTED_DOMAINS)),
-                "error": "You have reached the limit of 2 requests per 24 hours. "
-                         "For bulk changes please use Micetro.",
-            },
-            status_code=429,
-        )
-
     action = form.get("action", "")
     zone = form.get("zone", "")
     label = form.get("label", "")
@@ -114,8 +97,6 @@ async def submit_request(request: Request) -> HTMLResponse:
             },
             status_code=422,
         )
-
-    _svc.record_request(client_ip)
 
     return _templates.TemplateResponse(
         "confirmation.html",
