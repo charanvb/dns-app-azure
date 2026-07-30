@@ -14,12 +14,6 @@ resource "azurerm_container_app" "main" {
     type = "SystemAssigned"
   }
 
-  # Use the system-assigned MI to pull images from ACR (no admin credentials).
-  registry {
-    server   = azurerm_container_registry.main.login_server
-    identity = "system"
-  }
-
   template {
     container {
       name   = "dns-portal"

@@ -6,10 +6,12 @@
 name: Build and Deploy
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
 
 permissions:
   contents: read
@@ -47,6 +49,15 @@ jobs:
           docker push "$IMAGE_TAG"
           docker tag "$IMAGE_TAG" "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
           docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
+
+      # Wire managed identity to ACR; idempotent on subsequent runs.
+      - name: Configure ACR identity on Container App
+        run: |
+          az containerapp registry set \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$CONTAINER_APP_RG" \
+            --server "$ACR_NAME.azurecr.io" \
+            --identity system
 
       - name: Deploy to Container Apps
         run: |
