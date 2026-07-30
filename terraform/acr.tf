@@ -4,4 +4,8 @@ resource "azurerm_container_registry" "main" {
   location            = data.azurerm_resource_group.main.location
   sku                 = "Basic"
   admin_enabled       = false
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }

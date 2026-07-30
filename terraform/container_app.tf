@@ -2,6 +2,10 @@ resource "azurerm_container_app_environment" "main" {
   name                = var.container_app_env_name
   resource_group_name = data.azurerm_resource_group.main.name
   location            = data.azurerm_resource_group.main.location
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "azurerm_container_app" "main" {
@@ -39,10 +43,12 @@ resource "azurerm_container_app" "main" {
   }
 
   lifecycle {
-    # GitHub Actions owns the image tag; prevent Terraform from reverting it.
+    # CI owns the image; org policy owns tags; deploy.yml owns registry config.
     ignore_changes = [
       template[0].container[0].image,
       secret,
+      tags,
+      registry,
     ]
   }
 }
