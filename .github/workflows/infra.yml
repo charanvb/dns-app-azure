@@ -74,44 +74,15 @@ jobs:
             -backend-config="key=$TF_STATE_KEY" \
             -backend-config="access_key=$STORAGE_KEY"
 
-      # Imports resources that exist in Azure but fell out of state (e.g. after a timeout).
+      # Import Container App if it exists in Azure but is missing from state.
       - name: Import out-of-state resources
         working-directory: terraform
         run: |
-          RG="bnlwe-fs01-n-00000-cloudbau-rg"
-
-          # Container App
-          CA_ID=$(az containerapp show \
-            --name "bnlwe-fs01-n-00000-dns-ca" \
-            --resource-group "$RG" \
-            --query id -o tsv 2>/dev/null || echo "")
-          if [ -n "$CA_ID" ]; then
-            terraform state show azurerm_container_app.main 2>/dev/null || \
-              terraform import -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
-                azurerm_container_app.main "$CA_ID"
-          fi
-
-          # AcrPull role assignment (look up by principal + scope)
-          CA_PRINCIPAL=$(az containerapp show \
-            --name "bnlwe-fs01-n-00000-dns-ca" \
-            --resource-group "$RG" \
-            --query "identity.principalId" -o tsv 2>/dev/null || echo "")
-          ACR_ID=$(az acr show \
-            --name "bnlwecloudbauacr01" \
-            --resource-group "$RG" \
-            --query id -o tsv 2>/dev/null || echo "")
-          if [ -n "$CA_PRINCIPAL" ] && [ -n "$ACR_ID" ]; then
-            RA_ID=$(az role assignment list \
-              --assignee "$CA_PRINCIPAL" \
-              --scope "$ACR_ID" \
-              --role "AcrPull" \
-              --query "[0].id" -o tsv 2>/dev/null || echo "")
-            if [ -n "$RA_ID" ]; then
-              terraform state show azurerm_role_assignment.acr_pull 2>/dev/null || \
-                terraform import -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
-                  azurerm_role_assignment.acr_pull "$RA_ID"
-            fi
-          fi
+          terraform state show azurerm_container_app.main 2>/dev/null || \
+            terraform import \
+              -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
+              azurerm_container_app.main \
+              "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/bnlwe-fs01-n-00000-cloudbau-rg/providers/Microsoft.App/containerApps/bnlwe-fs01-n-00000-dns-ca" || true
 
       - name: Terraform Plan
         working-directory: terraform
