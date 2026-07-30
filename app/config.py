@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     environment: str = "development"
     port: int = 8000
+    dns_subscription_id: str = ""
+    dns_resource_group: str = ""
 
     class Config:
         env_file = ".env"

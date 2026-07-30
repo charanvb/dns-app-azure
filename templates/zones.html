@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}DNS Zones — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h4 fw-bold mb-0">&#x1F310; DNS Zones</h1>
+  <span class="text-muted small">{{ zones|length }} zone(s)</span>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+  <strong>Could not load DNS zones.</strong><br>{{ error }}
+</div>
+{% elif zones %}
+<div class="table-responsive">
+  <table class="table table-hover table-bordered align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Zone Name</th>
+        <th>Resource Group</th>
+        <th>Type</th>
+        <th class="text-end">Record Sets</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for zone in zones %}
+      <tr>
+        <td class="fw-semibold">{{ zone.name }}</td>
+        <td class="text-muted">{{ zone.resource_group }}</td>
+        <td><span class="badge bg-secondary">{{ zone.zone_type }}</span></td>
+        <td class="text-end">{{ zone.record_set_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-muted">No DNS zones found in the configured resource group.</p>
+{% endif %}
+{% endblock %}

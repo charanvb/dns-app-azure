@@ -32,3 +32,15 @@ variable "initial_image" {
   type        = string
   default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 }
+
+variable "dns_subscription_id" {
+  description = "Subscription ID containing the DNS zones."
+  type        = string
+  default     = "f5f0e79d-d6ab-43e4-b08c-60f2a53fd8be"
+}
+
+variable "dns_resource_group" {
+  description = "Resource group containing the DNS zones."
+  type        = string
+  default     = "bnlwe-cc01-d-00000-mic-rg"
+}

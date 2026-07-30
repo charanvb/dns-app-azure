@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
-from app.routers import health
+from app.routers import dns, health
 
 templates = Jinja2Templates(directory="templates")
 
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(dns.router)
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def index(request: Request) -> HTMLResponse:

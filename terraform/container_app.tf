@@ -29,6 +29,16 @@ resource "azurerm_container_app" "main" {
         name  = "ENVIRONMENT"
         value = "production"
       }
+
+      env {
+        name  = "DNS_SUBSCRIPTION_ID"
+        value = var.dns_subscription_id
+      }
+
+      env {
+        name  = "DNS_RESOURCE_GROUP"
+        value = var.dns_resource_group
+      }
     }
   }
 

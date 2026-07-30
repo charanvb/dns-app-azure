@@ -9,6 +9,12 @@
 name: Provision Infrastructure
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/infra.yml"
   workflow_dispatch:
 
 permissions:
