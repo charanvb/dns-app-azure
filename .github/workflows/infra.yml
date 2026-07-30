@@ -74,15 +74,26 @@ jobs:
             -backend-config="key=$TF_STATE_KEY" \
             -backend-config="access_key=$STORAGE_KEY"
 
-      # Import Container App if it exists in Azure but is missing from state.
+      # Imports any resource that exists in Azure but fell out of state (e.g. after a timeout).
       - name: Import out-of-state resources
         working-directory: terraform
         run: |
+          RG="/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/bnlwe-fs01-n-00000-cloudbau-rg"
+
+          terraform state show azurerm_container_registry.main 2>/dev/null || \
+            terraform import -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
+              azurerm_container_registry.main \
+              "$RG/providers/Microsoft.ContainerRegistry/registries/bnlwecloudbauacr01" || true
+
+          terraform state show azurerm_container_app_environment.main 2>/dev/null || \
+            terraform import -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
+              azurerm_container_app_environment.main \
+              "$RG/providers/Microsoft.App/managedEnvironments/bnlwe-fs01-n-00000-dns-cae" || true
+
           terraform state show azurerm_container_app.main 2>/dev/null || \
-            terraform import \
-              -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
+            terraform import -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
               azurerm_container_app.main \
-              "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/bnlwe-fs01-n-00000-cloudbau-rg/providers/Microsoft.App/containerApps/bnlwe-fs01-n-00000-dns-ca" || true
+              "$RG/providers/Microsoft.App/containerApps/bnlwe-fs01-n-00000-dns-ca" || true
 
       - name: Terraform Plan
         working-directory: terraform
