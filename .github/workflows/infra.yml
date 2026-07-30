@@ -1,0 +1,90 @@
+# Provisions all Azure infrastructure via Terraform.
+# Run this ONCE before the first app deploy, then re-run only when infra changes.
+#
+# Required secrets: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# Required SPN roles on bnlwe-fs01-n-00000-cloudbau-rg:
+#   - Contributor              (create ACR, Container Apps Environment, Container App)
+#   - User Access Administrator  (create the AcrPull role assignment)
+
+name: Provision Infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.9.8"
+  # Terraform remote state stored in the existing storage account.
+  TF_STATE_RG: "bnlwe-fs01-n-00000-cloudbau-rg"
+  TF_STATE_SA: "bnlwestgunileverfs01028"
+  TF_STATE_CONTAINER: "tfstate"
+  TF_STATE_KEY: "dns-portal.tfstate"
+  # ARM_ vars are read by both the azurerm Terraform provider and the backend.
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  terraform:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Storage account already exists; just ensure the blob container is present.
+      - name: Ensure TF state container exists
+        run: |
+          STORAGE_KEY=$(az storage account keys list \
+            --resource-group "$TF_STATE_RG" \
+            --account-name "$TF_STATE_SA" \
+            --query "[0].value" -o tsv)
+          echo "STORAGE_KEY=$STORAGE_KEY" >> "$GITHUB_ENV"
+
+          az storage container create \
+            --name "$TF_STATE_CONTAINER" \
+            --account-name "$TF_STATE_SA" \
+            --account-key "$STORAGE_KEY" \
+            --output none 2>/dev/null || true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=$TF_STATE_RG" \
+            -backend-config="storage_account_name=$TF_STATE_SA" \
+            -backend-config="container_name=$TF_STATE_CONTAINER" \
+            -backend-config="key=$TF_STATE_KEY" \
+            -backend-config="access_key=$STORAGE_KEY"
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: |
+          terraform plan \
+            -var="subscription_id=$ARM_SUBSCRIPTION_ID" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Show outputs
+        working-directory: terraform
+        run: terraform output

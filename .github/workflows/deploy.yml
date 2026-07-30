@@ -1,0 +1,56 @@
+# Builds the Docker image, pushes to ACR, and updates the Container App.
+# Triggers on every push to main. Run infra.yml at least once before the first deploy.
+#
+# Required secrets: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: dns-portal
+  ACR_NAME: bnlwecloudbauacr01
+  CONTAINER_APP_NAME: bnlwe-fs01-n-00000-dns-ca
+  CONTAINER_APP_RG: bnlwe-fs01-n-00000-cloudbau-rg
+
+jobs:
+  build-and-deploy:
+    name: Build → Push → Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push image
+        run: |
+          IMAGE_TAG="$ACR_NAME.azurecr.io/$IMAGE_NAME:${{ github.sha }}"
+          docker build -t "$IMAGE_TAG" .
+          docker push "$IMAGE_TAG"
+          docker tag "$IMAGE_TAG" "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
+          docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
+
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp update \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$CONTAINER_APP_RG" \
+            --image "$ACR_NAME.azurecr.io/$IMAGE_NAME:${{ github.sha }}"
