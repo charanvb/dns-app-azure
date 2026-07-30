@@ -5,3 +5,4 @@ pydantic-settings==2.6.1
 python-multipart==0.0.12
 azure-identity==1.19.0
 azure-mgmt-dns==8.0.0
+six==1.16.0
