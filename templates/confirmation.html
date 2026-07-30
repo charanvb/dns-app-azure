@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Request Submitted — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="min-height:60vh">
+  <div class="card shadow-sm" style="max-width:540px;width:100%">
+    <div class="card-body text-center py-5">
+      <div class="display-1 mb-3">&#x1F4EC;</div>
+      <h1 class="h4 fw-bold">Request Submitted</h1>
+      <p class="text-muted mt-2">Your DNS change request has been logged and is pending review.</p>
+      <hr class="my-4" />
+      <table class="table table-sm text-start">
+        <tr><th>Zone</th><td>{{ zone }}</td></tr>
+        <tr><th>Action</th><td class="text-capitalize">{{ action }}</td></tr>
+        <tr><th>Record Type</th><td>{{ record_type }}</td></tr>
+        <tr><th>Label</th><td>{{ label }}</td></tr>
+        <tr><th>Value</th><td class="text-break">{{ value }}</td></tr>
+        <tr><th>TTL</th><td>{{ ttl }}s</td></tr>
+      </table>
+      <a href="/request" class="btn btn-primary btn-sm mt-2">New Request</a>
+      <a href="/zones" class="btn btn-outline-secondary btn-sm mt-2 ms-2">Back to Zones</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

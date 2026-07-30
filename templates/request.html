@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}DNS Change Request — {{ app_name }}{% endblock %}
+
+{% block head %}
+<style>
+  .req { color:#c62828; margin-left:2px }
+  .hint { font-size:11px; color:#777; margin-bottom:5px }
+  .section-title {
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px;
+    color:#1565c0; border-bottom:2px solid #e3eaf5; padding-bottom:6px;
+    margin:24px 0 16px;
+  }
+  .section-title:first-child { margin-top:0 }
+
+  /* record type pills */
+  .rec-type-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px }
+  .rec-type-bar button {
+    padding:6px 14px; border:2px solid #ccc; border-radius:20px;
+    background:#fff; font-size:13px; font-weight:600; cursor:pointer; color:#555;
+  }
+  .rec-type-bar button:hover { border-color:#1565c0; background:#e8f0fe; color:#1565c0 }
+
+  /* record cards */
+  .rec-cards { display:flex; flex-direction:column; gap:10px; margin-top:8px }
+  .rec-card {
+    background:#f7f9ff; border:1px solid #d0dff5; border-radius:6px;
+    padding:14px 16px; position:relative;
+  }
+  .rec-card .card-num {
+    font-size:11px; font-weight:700; color:#1565c0; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .rec-card .type-tag {
+    background:#1565c0; color:#fff; font-size:10px;
+    padding:2px 8px; border-radius:10px;
+  }
+  .rec-card .del-card {
+    position:absolute; top:10px; right:12px;
+    background:none; border:none; color:#c62828; cursor:pointer; font-size:16px;
+  }
+  .rec-card .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+  .rec-card .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px }
+  .rec-card .row4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px }
+  .rec-card .fl { display:flex; flex-direction:column; gap:3px }
+  .rec-card .fl label { font-size:12px; font-weight:600; color:#444 }
+  .rec-card .fl input,
+  .rec-card .fl textarea {
+    padding:6px 8px; border:1px solid #ccc; border-radius:4px;
+    font-size:13px; background:#fff; width:100%;
+  }
+  .rec-card .fl input:focus,
+  .rec-card .fl textarea:focus { outline:none; border-color:#1565c0 }
+  .rec-card .fl textarea { resize:vertical; min-height:60px }
+  .rec-card .field-err { font-size:11px; color:#c62828; margin-top:2px; display:none }
+
+  /* modify/delete table */
+  .mrvs-wrap { overflow-x:auto }
+  .mrvs-table { width:100%; border-collapse:collapse; font-size:12px; min-width:420px }
+  .mrvs-table th {
+    background:#e3eaf5; color:#1565c0; padding:8px 10px;
+    text-align:left; font-weight:600; white-space:nowrap;
+  }
+  .mrvs-table td { padding:5px 6px; border-bottom:1px solid #eee; vertical-align:middle }
+  .mrvs-table td input,
+  .mrvs-table td select {
+    width:100%; padding:5px 6px; border:1px solid #ccc;
+    border-radius:3px; font-size:12px; background:#fafafa;
+  }
+  .mrvs-table td input:focus,
+  .mrvs-table td select:focus { outline:none; border-color:#1565c0 }
+  .mrvs-table .del-btn {
+    background:none; border:none; color:#c62828; cursor:pointer; font-size:15px;
+  }
+  .add-row-btn {
+    margin-top:8px; background:#e3eaf5; border:1px dashed #1565c0;
+    color:#1565c0; padding:6px 14px; border-radius:4px;
+    cursor:pointer; font-size:12px; font-weight:600;
+  }
+  .add-row-btn:hover { background:#c5d8f5 }
+
+  /* SPF warning */
+  .spf-warn {
+    display:none; background:#fff8e1; border:1px solid #f9a825;
+    border-radius:4px; padding:10px 14px; font-size:12px; color:#5d4037; margin-top:6px;
+  }
+  .spf-warn.show { display:block }
+
+  /* blacklist banner */
+  .blacklist-banner {
+    display:none; background:#fbe9e7; border:1px solid #e53935;
+    border-radius:4px; padding:10px 14px; font-size:12px; color:#b71c1c; margin-top:6px;
+  }
+  .blacklist-banner.show { display:block }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 fw-bold mb-0">&#128221; DNS Change Request</h1>
+  <span class="badge bg-warning text-dark">Max 2 requests / 24 h</span>
+</div>
+<p class="text-muted small mb-4">
+  Create, modify or delete external DNS records. One change set per request.
+  Email-related records (MX) must go through the Messaging team.
+</p>
+
+{% if error %}
+<div class="alert alert-danger mb-3">{{ error }}</div>
+{% endif %}
+
+{% if errors %}
+<div class="alert alert-danger mb-3">
+  <strong>Please fix the following:</strong>
+  <ul class="mb-0 mt-1">
+    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form id="srForm" method="post" action="/request" novalidate>
+
+      <!-- ── Zone ──────────────────────────────────────────────────────── -->
+      <div class="section-title">Target Zone</div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="zone">
+          DNS Zone <span class="req">*</span>
+        </label>
+        {% if zones %}
+        <select class="form-select" id="zone" name="zone" required onchange="checkBlacklist(this.value)">
+          <option value="">-- Select a zone --</option>
+          {% for z in zones %}
+          <option value="{{ z.name }}">{{ z.name }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <div class="alert alert-warning py-2 mb-0">
+          Could not load zones from Azure. Check Managed Identity permissions.
+        </div>
+        {% endif %}
+        <div class="blacklist-banner" id="blacklistBanner">
+          &#128683; This zone is managed via <strong>Micetro</strong> and cannot be
+          changed through this portal. Please raise your request there.
+        </div>
+      </div>
+
+      <!-- ── Action ────────────────────────────────────────────────────── -->
+      <div class="section-title">DNS Operation</div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="action">
+          Action <span class="req">*</span>
+        </label>
+        <select class="form-select" id="action" name="action" required onchange="onActionChange(this.value)">
+          <option value="">-- Select --</option>
+          <option value="create">Create DNS Record</option>
+          <option value="modify">Modify DNS Record</option>
+          <option value="delete">Delete DNS Record</option>
+        </select>
+      </div>
+
+      <!-- ══ CREATE ══════════════════════════════════════════════════════ -->
+      <div id="section_create" style="display:none">
+        <div class="section-title">Records to Create</div>
+        <div class="hint mb-2">
+          Select a record type to add a record. Mix types freely.
+          MX records are excluded — contact the Messaging team for email changes.
+        </div>
+
+        <div class="rec-type-bar" id="typeBar">
+          <button type="button" onclick="addRecord('A')">+ A</button>
+          <button type="button" onclick="addRecord('AAAA')">+ AAAA</button>
+          <button type="button" onclick="addRecord('CNAME')">+ CNAME</button>
+          <button type="button" onclick="addRecord('TXT')">+ TXT</button>
+          <button type="button" onclick="addRecord('SRV')">+ SRV</button>
+          <button type="button" onclick="addRecord('Others')">+ Others</button>
+        </div>
+
+        <div class="rec-cards" id="recCards"></div>
+      </div>
+
+      <!-- ══ MODIFY ══════════════════════════════════════════════════════ -->
+      <div id="section_modify" style="display:none">
+        <div class="section-title">Records to Modify</div>
+        <div class="hint mb-2">One row per record. Provide current and new values.</div>
+        <div class="mrvs-wrap">
+          <table class="mrvs-table">
+            <thead>
+              <tr>
+                <th>Type</th><th>Label</th>
+                <th>Current Value</th><th>New Value</th>
+                <th>Current TTL</th><th>New TTL</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody_modify"></tbody>
+          </table>
+        </div>
+        <button type="button" class="add-row-btn" onclick="addModifyRow()">+ Add Row</button>
+      </div>
+
+      <!-- ══ DELETE ══════════════════════════════════════════════════════ -->
+      <div id="section_delete" style="display:none">
+        <div class="section-title">Records to Delete</div>
+        <div class="hint mb-2">Provide the exact value to confirm which record to remove.</div>
+        <div class="mrvs-wrap">
+          <table class="mrvs-table">
+            <thead>
+              <tr><th>Type</th><th>Label</th><th>Value (for verification)</th><th></th></tr>
+            </thead>
+            <tbody id="tbody_delete"></tbody>
+          </table>
+        </div>
+        <button type="button" class="add-row-btn" onclick="addDeleteRow()">+ Add Row</button>
+      </div>
+
+      <!-- ── Simple single-record fields (used for server validation) ─── -->
+      <!-- These hidden inputs carry the first record's data to the server -->
+      <input type="hidden" id="h_label" name="label" />
+      <input type="hidden" id="h_record_type" name="record_type" />
+      <input type="hidden" id="h_value" name="value" />
+      <input type="hidden" id="h_ttl" name="ttl" value="300" />
+
+      <!-- ── Justification ─────────────────────────────────────────────── -->
+      <div id="section_justification" style="display:none">
+        <div class="section-title">Business Justification</div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="justification">
+            Reason for change <span class="req">*</span>
+          </label>
+          <textarea class="form-control" id="justification" name="justification"
+            rows="3" placeholder="Minimum 20 characters…" required></textarea>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+          <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">Reset</button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">Submit Request</button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- ── Delete confirmation modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">&#9888;&#65039; Confirm Deletion</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to request deletion of DNS record(s). This action cannot be undone.</p>
+        <p>Type the first label you want to delete to confirm:</p>
+        <p class="fw-bold text-danger" id="deleteConfirmTarget">—</p>
+        <input type="text" class="form-control" id="deleteConfirmInput"
+          placeholder="Type the label here…" oninput="checkDeleteConfirm()" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="deleteConfirmBtn"
+          onclick="proceedDelete()" disabled>Confirm &amp; Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const BLACKLISTED = {{ blacklisted_json | safe }};
+  const SINGLE_TYPES = ['SRV', 'Others'];
+  const REC_TYPES = ['A','AAAA','CNAME','TXT','SRV','DKIM','PTR','NS'];
+  const TYPE_OPTS = REC_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  // ── Blacklist check ───────────────────────────────────────────────────
+  function checkBlacklist(zone) {
+    const banner = document.getElementById('blacklistBanner');
+    const submitBtn = document.getElementById('submitBtn');
+    const z = zone.toLowerCase();
+    const blocked = BLACKLISTED.some(b => z === b || z.endsWith('.' + b));
+    banner.classList.toggle('show', blocked);
+    if (submitBtn) submitBtn.disabled = blocked;
+  }
+
+  // ── Action toggle ─────────────────────────────────────────────────────
+  function onActionChange(val) {
+    ['section_create','section_modify','section_delete','section_justification']
+      .forEach(id => document.getElementById(id).style.display = 'none');
+    if (val === 'create')  document.getElementById('section_create').style.display = '';
+    if (val === 'modify')  {
+      document.getElementById('section_modify').style.display = '';
+      if (!document.getElementById('tbody_modify').rows.length) addModifyRow();
+    }
+    if (val === 'delete')  {
+      document.getElementById('section_delete').style.display = '';
+      if (!document.getElementById('tbody_delete').rows.length) addDeleteRow();
+    }
+    if (val) document.getElementById('section_justification').style.display = '';
+  }
+
+  // ── Label validation ─────────────────────────────────────────────────
+  function validateLabel(val, errEl) {
+    const el = errEl ? document.getElementById(errEl) : null;
+    let msg = '';
+    if (!val)                      msg = 'Label is required.';
+    else if (val.includes('*'))    msg = 'Wildcards (*) are not permitted.';
+    else if (val.length > 253)     msg = 'Exceeds maximum FQDN length (253).';
+    else if (val !== '@' && !/^[a-zA-Z0-9][a-zA-Z0-9.\-]*$/.test(val))
+                                   msg = 'Only a–z, 0–9, hyphens and dots allowed.';
+    else {
+      const segs = val.replace('@','root').split('.');
+      if (segs.some(s => s.length > 63)) msg = 'A label segment exceeds 63 characters.';
+    }
+    if (el) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
+    return !msg;
+  }
+
+  function validateIPv4(val, errEl) {
+    const el = errEl ? document.getElementById(errEl) : null;
+    const ok = /^(\d{1,3}\.){3}\d{1,3}$/.test(val) &&
+      val.split('.').every(n => +n >= 0 && +n <= 255);
+    const msg = ok ? '' : `'${val}' is not a valid IPv4 address.`;
+    if (el) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
+    return ok;
+  }
+
+  function validateIPv6(val, errEl) {
+    const el = errEl ? document.getElementById(errEl) : null;
+    // Basic structural check
+    const ok = /^[0-9a-fA-F:]+$/.test(val) && val.includes(':');
+    const msg = ok ? '' : `'${val}' is not a valid IPv6 address.`;
+    if (el) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
+    return ok;
+  }
+
+  // ── CREATE record cards ───────────────────────────────────────────────
+  function addRecord(type) {
+    const cards = document.getElementById('recCards');
+    if (SINGLE_TYPES.includes(type) &&
+        [...cards.querySelectorAll('.rec-card')].some(c => c.dataset.type === type)) {
+      alert(`Only 1 ${type} record is allowed per request.`);
+      return;
+    }
+    const idx = Date.now();
+    const card = document.createElement('div');
+    card.className = 'rec-card';
+    card.dataset.type = type;
+    card.innerHTML = buildCard(type, idx);
+    cards.appendChild(card);
+    renumberCards();
+    card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+
+  function removeCard(btn) {
+    btn.closest('.rec-card').remove();
+    renumberCards();
+  }
+
+  function renumberCards() {
+    [...document.getElementById('recCards').children].forEach((c, i) => {
+      const s = c.querySelector('.card-num span');
+      if (s) s.textContent = `Record ${i + 1}`;
+    });
+  }
+
+  function buildCard(type, idx) {
+    const del = `<button type="button" class="del-card" onclick="removeCard(this)" title="Remove">✕</button>`;
+    const num = `<div class="card-num"><span>Record 1</span><span class="type-tag">${type}</span></div>`;
+    const nameF = (pfx) => `
+      <div class="fl">
+        <label>Label / Host <span class="req">*</span></label>
+        <input type="text" id="${pfx}_label" placeholder="e.g. www  or @ for zone root"
+          oninput="validateLabel(this.value,'${pfx}_lerr')" />
+        <div class="field-err" id="${pfx}_lerr"></div>
+      </div>`;
+    const ttlF = (pfx) => `
+      <div class="fl">
+        <label>TTL (s)</label>
+        <input type="text" id="${pfx}_ttl" value="300" />
+      </div>`;
+
+    let body = '';
+    const p = `rc_${idx}`;
+
+    if (type === 'A') {
+      body = `<div class="row2">${nameF(p)}
+        <div class="fl">
+          <label>IPv4 Address <span class="req">*</span></label>
+          <input type="text" id="${p}_val" placeholder="e.g. 203.0.113.10"
+            oninput="validateIPv4(this.value,'${p}_verr')" />
+          <div class="field-err" id="${p}_verr"></div>
+        </div></div>
+        <div class="row2" style="margin-top:8px">${ttlF(p)}<div></div></div>`;
+
+    } else if (type === 'AAAA') {
+      body = `<div class="row2">${nameF(p)}
+        <div class="fl">
+          <label>IPv6 Address <span class="req">*</span></label>
+          <input type="text" id="${p}_val" placeholder="e.g. 2001:db8::1"
+            oninput="validateIPv6(this.value,'${p}_verr')" />
+          <div class="field-err" id="${p}_verr"></div>
+        </div></div>
+        <div class="row2" style="margin-top:8px">${ttlF(p)}<div></div></div>`;
+
+    } else if (type === 'CNAME') {
+      body = `<div class="row2">${nameF(p)}
+        <div class="fl">
+          <label>Target FQDN <span class="req">*</span></label>
+          <input type="text" id="${p}_val" placeholder="e.g. target.example.com"
+            oninput="validateLabel(this.value,'${p}_verr')" />
+          <div class="field-err" id="${p}_verr"></div>
+        </div></div>
+        <div class="row2" style="margin-top:8px">${ttlF(p)}<div></div></div>`;
+
+    } else if (type === 'TXT') {
+      body = `${nameF(p)}
+        <div class="fl" style="margin-top:8px">
+          <label>Value <span class="req">*</span></label>
+          <textarea id="${p}_val" placeholder='e.g. "v=spf1 include:example.com -all"'
+            oninput="checkSpfWarn('${p}_spfw',this.value)"></textarea>
+          <div class="spf-warn" id="${p}_spfw">
+            ⚠️ <strong>SPF record detected.</strong> Before creating, verify that no
+            existing SPF record exists for this label — duplicate SPF records cause mail
+            delivery failures. Ask your DNS admin to check first.
+          </div>
+        </div>
+        <div class="row2" style="margin-top:8px">${ttlF(p)}<div></div></div>`;
+
+    } else if (type === 'SRV') {
+      body = `<div class="row2">${nameF(p)}
+        <div class="fl">
+          <label>Target <span class="req">*</span></label>
+          <input type="text" id="${p}_val" placeholder="e.g. svc.example.com" />
+        </div></div>
+        <div class="row4" style="margin-top:8px">
+          <div class="fl"><label>Priority</label><input type="text" placeholder="10" /></div>
+          <div class="fl"><label>Weight</label><input type="text" placeholder="20" /></div>
+          <div class="fl"><label>Port</label><input type="text" placeholder="443" /></div>
+          ${ttlF(p)}
+        </div>`;
+
+    } else {
+      body = `<div class="fl">
+        <label>Record Details <span class="req">*</span></label>
+        <textarea id="${p}_val" placeholder="Full record details (type, label, value, TTL)…"
+          style="min-height:80px"></textarea>
+      </div>`;
+    }
+
+    return `${num}${del}${body}`;
+  }
+
+  function checkSpfWarn(warnId, val) {
+    const w = document.getElementById(warnId);
+    if (w) w.classList.toggle('show', val.toLowerCase().includes('v=spf1'));
+  }
+
+  // ── MODIFY table ──────────────────────────────────────────────────────
+  function addModifyRow() {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><select><option value="">-- Type --</option>${TYPE_OPTS}</select></td>
+      <td><input type="text" placeholder="label" /></td>
+      <td><input type="text" placeholder="current value" /></td>
+      <td><input type="text" placeholder="new value" /></td>
+      <td><input type="text" placeholder="current TTL" /></td>
+      <td><input type="text" placeholder="new TTL" value="300" /></td>
+      <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>`;
+    document.getElementById('tbody_modify').appendChild(tr);
+  }
+
+  // ── DELETE table ──────────────────────────────────────────────────────
+  function addDeleteRow() {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><select><option value="">-- Type --</option>${TYPE_OPTS}</select></td>
+      <td><input type="text" placeholder="label"
+        oninput="validateLabel(this.value)" /></td>
+      <td><input type="text" placeholder="value (for verification)" /></td>
+      <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>`;
+    document.getElementById('tbody_delete').appendChild(tr);
+  }
+
+  // ── Delete confirmation modal ─────────────────────────────────────────
+  let _deleteModal;
+  function getDeleteModal() {
+    if (!_deleteModal) _deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    return _deleteModal;
+  }
+
+  function checkDeleteConfirm() {
+    const target = document.getElementById('deleteConfirmTarget').textContent;
+    const input  = document.getElementById('deleteConfirmInput').value.trim();
+    document.getElementById('deleteConfirmBtn').disabled = (input !== target);
+  }
+
+  function proceedDelete() {
+    getDeleteModal().hide();
+    document.getElementById('srForm').submit();
+  }
+
+  // ── Form submit ───────────────────────────────────────────────────────
+  document.getElementById('srForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const zone   = document.getElementById('zone').value;
+    const action = document.getElementById('action').value;
+    const justif = (document.getElementById('justification').value || '').trim();
+
+    if (!zone)   { alert('Please select a DNS zone.'); return; }
+    if (!action) { alert('Please select an action.'); return; }
+    if (justif.length < 20) {
+      alert('Business Justification must be at least 20 characters.'); return;
+    }
+
+    // Populate hidden fields from first visible record card
+    const firstCard = document.querySelector('#recCards .rec-card');
+    if (action === 'create' && firstCard) {
+      const type = firstCard.dataset.type;
+      const p    = firstCard.querySelector('input[id$="_label"]');
+      const v    = firstCard.querySelector('input[id$="_val"], textarea[id$="_val"]');
+      const t    = firstCard.querySelector('input[id$="_ttl"]');
+      document.getElementById('h_label').value       = p ? p.value : '';
+      document.getElementById('h_record_type').value  = type;
+      document.getElementById('h_value').value        = v ? v.value : '';
+      document.getElementById('h_ttl').value          = t ? t.value : '300';
+
+      // Validate first card label
+      if (p && !validateLabel(p.value, null)) return;
+    }
+
+    // Delete confirmation modal
+    if (action === 'delete') {
+      const firstLabelInput = document.querySelector('#tbody_delete td:nth-child(2) input');
+      const lbl = firstLabelInput ? firstLabelInput.value.trim() : '';
+      if (!lbl) { alert('Please enter at least one label to delete.'); return; }
+
+      document.getElementById('h_label').value       = lbl;
+      const firstType = document.querySelector('#tbody_delete td:nth-child(1) select');
+      document.getElementById('h_record_type').value  = firstType ? firstType.value : '';
+      const firstVal  = document.querySelector('#tbody_delete td:nth-child(3) input');
+      document.getElementById('h_value').value        = firstVal ? firstVal.value : '';
+
+      document.getElementById('deleteConfirmTarget').textContent = lbl;
+      document.getElementById('deleteConfirmInput').value = '';
+      document.getElementById('deleteConfirmBtn').disabled = true;
+      getDeleteModal().show();
+      return;
+    }
+
+    this.submit();
+  });
+
+  // ── Reset ─────────────────────────────────────────────────────────────
+  function resetForm() {
+    document.getElementById('srForm').reset();
+    ['section_create','section_modify','section_delete','section_justification']
+      .forEach(id => document.getElementById(id).style.display = 'none');
+    document.getElementById('recCards').innerHTML = '';
+    document.getElementById('tbody_modify').innerHTML = '';
+    document.getElementById('tbody_delete').innerHTML = '';
+    document.getElementById('blacklistBanner').classList.remove('show');
+  }
+</script>
+{% endblock %}
