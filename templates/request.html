@@ -574,7 +574,10 @@
     }
 
     // Populate hidden fields for each action type.
-    if (action === 'create' && firstCard) {
+    const firstCard = document.querySelector('#recCards .rec-card');
+
+    if (action === 'create') {
+      if (!firstCard) { alert('Please add at least one record to create.'); return; }
       const type = firstCard.dataset.type;
       const p    = firstCard.querySelector('input[id$="_label"]');
       const v    = firstCard.querySelector('input[id$="_val"], textarea[id$="_val"]');
@@ -583,8 +586,6 @@
       document.getElementById('h_record_type').value  = type;
       document.getElementById('h_value').value        = v ? v.value : '';
       document.getElementById('h_ttl').value          = t ? t.value : '300';
-
-      // Validate first card label
       if (p && !validateLabel(p.value, null)) return;
     }
 
