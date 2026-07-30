@@ -86,12 +86,7 @@
   }
   .spf-warn.show { display:block }
 
-  /* blacklist banner */
-  .blacklist-banner {
-    display:none; background:#fbe9e7; border:1px solid #e53935;
-    border-radius:4px; padding:10px 14px; font-size:12px; color:#b71c1c; margin-top:6px;
-  }
-  .blacklist-banner.show { display:block }
+  /* blacklist banner uses Bootstrap d-none — no custom CSS needed */
 </style>
 {% endblock %}
 
@@ -140,7 +135,7 @@
           Could not load zones from Azure. Check Managed Identity permissions.
         </div>
         {% endif %}
-        <div class="blacklist-banner" id="blacklistBanner">
+        <div id="blacklistBanner" class="d-none alert alert-danger py-2 mt-2 mb-0 small">
           &#128683; This zone is managed via <strong>Micetro</strong> and cannot be
           changed through this portal. Please raise your request there.
         </div>
@@ -280,8 +275,9 @@
     const banner = document.getElementById('blacklistBanner');
     const submitBtn = document.getElementById('submitBtn');
     const z = zone.toLowerCase();
-    const blocked = BLACKLISTED.some(b => z === b || z.endsWith('.' + b));
-    banner.classList.toggle('show', blocked);
+    // Only block if a zone is actually selected and matches the blacklist.
+    const blocked = !!z && BLACKLISTED.some(b => z === b || z.endsWith('.' + b));
+    banner.classList.toggle('d-none', !blocked);
     if (submitBtn) submitBtn.disabled = blocked;
   }
 
