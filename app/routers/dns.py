@@ -1,7 +1,7 @@
 """DNS zones router — renders the zone listing page."""
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
@@ -34,3 +34,17 @@ async def list_zones(request: Request) -> HTMLResponse:
             "error": error,
         },
     )
+
+
+@router.get("/records", summary="List records in a zone (JSON)")
+async def list_zone_records(zone: str) -> JSONResponse:
+    """Return all modifiable records in the given zone as JSON for the request form."""
+    try:
+        svc = DnsService(settings.dns_subscription_id)
+        records = svc.list_records_by_zone(settings.dns_resource_group, zone)
+        return JSONResponse([
+            {"name": r.name, "type": r.record_type, "ttl": r.ttl, "value": r.value}
+            for r in records
+        ])
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)

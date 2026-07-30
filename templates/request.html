@@ -178,36 +178,66 @@
 
       <!-- ══ MODIFY ══════════════════════════════════════════════════════ -->
       <div id="section_modify" style="display:none">
-        <div class="section-title">Records to Modify</div>
-        <div class="hint mb-2">One row per record. Provide current and new values.</div>
-        <div class="mrvs-wrap">
-          <table class="mrvs-table">
-            <thead>
-              <tr>
-                <th>Type</th><th>Label</th>
-                <th>Current Value</th><th>New Value</th>
-                <th>Current TTL</th><th>New TTL</th><th></th>
-              </tr>
-            </thead>
-            <tbody id="tbody_modify"></tbody>
-          </table>
+        <div class="section-title">Existing Records</div>
+        <div id="existingRecordsModify">
+          <p class="text-muted small">Select a zone to load existing records.</p>
         </div>
-        <button type="button" class="add-row-btn" onclick="addModifyRow()">+ Add Row</button>
+
+        <div class="section-title">Record to Modify</div>
+        <p class="hint mb-3">Click <strong>Use</strong> on a record above to pre-fill, or enter manually.</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Type <span class="req">*</span></label>
+            <select id="mod_type" class="form-select form-select-sm">
+              <option value="">-- --</option>
+              <option>A</option><option>AAAA</option><option>CNAME</option><option>TXT</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Label <span class="req">*</span></label>
+            <input type="text" id="mod_label" class="form-control form-control-sm" placeholder="e.g. www" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Current Value</label>
+            <input type="text" id="mod_current" class="form-control form-control-sm bg-light" readonly placeholder="auto-filled" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">New Value <span class="req">*</span></label>
+            <input type="text" id="mod_new" class="form-control form-control-sm" placeholder="enter new value" />
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">New TTL</label>
+            <input type="text" id="mod_ttl" class="form-control form-control-sm" value="300" />
+          </div>
+        </div>
       </div>
 
       <!-- ══ DELETE ══════════════════════════════════════════════════════ -->
       <div id="section_delete" style="display:none">
-        <div class="section-title">Records to Delete</div>
-        <div class="hint mb-2">Provide the exact value to confirm which record to remove.</div>
-        <div class="mrvs-wrap">
-          <table class="mrvs-table">
-            <thead>
-              <tr><th>Type</th><th>Label</th><th>Value (for verification)</th><th></th></tr>
-            </thead>
-            <tbody id="tbody_delete"></tbody>
-          </table>
+        <div class="section-title">Existing Records</div>
+        <div id="existingRecordsDelete">
+          <p class="text-muted small">Select a zone to load existing records.</p>
         </div>
-        <button type="button" class="add-row-btn" onclick="addDeleteRow()">+ Add Row</button>
+
+        <div class="section-title">Record to Delete</div>
+        <p class="hint mb-3">Click <strong>Delete</strong> on a record above to pre-fill, or enter manually.</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Type <span class="req">*</span></label>
+            <select id="del_type" class="form-select form-select-sm">
+              <option value="">-- --</option>
+              <option>A</option><option>AAAA</option><option>CNAME</option><option>TXT</option><option>SRV</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Label <span class="req">*</span></label>
+            <input type="text" id="del_label" class="form-control form-control-sm" placeholder="e.g. www" />
+          </div>
+          <div class="col-md-7">
+            <label class="form-label small fw-semibold">Current Value <span class="text-muted">(for verification)</span></label>
+            <input type="text" id="del_value" class="form-control form-control-sm" readonly placeholder="auto-filled from existing records" />
+          </div>
+        </div>
       </div>
 
       <!-- ── Simple single-record fields (used for server validation) ─── -->
@@ -279,20 +309,73 @@
     const blocked = !!z && BLACKLISTED.some(b => z === b || z.endsWith('.' + b));
     banner.classList.toggle('d-none', !blocked);
     if (submitBtn) submitBtn.disabled = blocked;
+    // Reload existing records when zone changes.
+    if (!blocked && z) {
+      const action = document.getElementById('action').value;
+      if (action === 'modify') loadExistingRecords(z, 'existingRecordsModify', 'mod');
+      if (action === 'delete') loadExistingRecords(z, 'existingRecordsDelete', 'del');
+    }
+  }
+
+  // ── AJAX: load existing records into the modify/delete panel ──────────
+  async function loadExistingRecords(zone, panelId, mode) {
+    const panel = document.getElementById(panelId);
+    panel.innerHTML = '<p class="text-muted small">&#9203; Loading records…</p>';
+    try {
+      const resp = await fetch(`/zones/records?zone=${encodeURIComponent(zone)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const records = await resp.json();
+      if (records.error) { panel.innerHTML = `<div class="alert alert-warning small py-2">${records.error}</div>`; return; }
+      if (!records.length) { panel.innerHTML = '<p class="text-muted small">No records found in this zone.</p>'; return; }
+      const isModify = mode === 'mod';
+      let html = `<div class="table-responsive"><table class="table table-sm table-hover table-bordered align-middle mb-1">
+        <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th></th></tr></thead><tbody>`;
+      records.forEach(r => {
+        const name  = r.name.replace(/'/g, "\\'");
+        const val   = r.value.replace(/'/g, "\\'");
+        const btn   = isModify
+          ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" onclick="useRecord('${name}','${r.type}','${val}',${r.ttl})">Use</button>`
+          : `<button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="fillDeleteRow('${name}','${r.type}','${val}')">Select</button>`;
+        html += `<tr><td><span class="badge bg-secondary">${r.type}</span></td>
+          <td class="fw-semibold">${r.name}</td>
+          <td class="text-break" style="max-width:260px;font-size:12px">${r.value}</td>
+          <td>${r.ttl}</td><td>${btn}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+      panel.innerHTML = html;
+    } catch(e) {
+      panel.innerHTML = `<div class="alert alert-danger small py-2">Failed to load records: ${e.message}</div>`;
+    }
+  }
+
+  function useRecord(name, type, value, ttl) {
+    document.getElementById('mod_type').value    = type;
+    document.getElementById('mod_label').value   = name;
+    document.getElementById('mod_current').value = value;
+    document.getElementById('mod_new').value     = '';
+    document.getElementById('mod_ttl').value     = ttl;
+    document.getElementById('mod_new').focus();
+  }
+
+  function fillDeleteRow(name, type, value) {
+    document.getElementById('del_type').value  = type;
+    document.getElementById('del_label').value = name;
+    document.getElementById('del_value').value = value;
   }
 
   // ── Action toggle ─────────────────────────────────────────────────────
   function onActionChange(val) {
     ['section_create','section_modify','section_delete','section_justification']
       .forEach(id => document.getElementById(id).style.display = 'none');
-    if (val === 'create')  document.getElementById('section_create').style.display = '';
-    if (val === 'modify')  {
+    const zone = document.getElementById('zone').value;
+    if (val === 'create') document.getElementById('section_create').style.display = '';
+    if (val === 'modify') {
       document.getElementById('section_modify').style.display = '';
-      if (!document.getElementById('tbody_modify').rows.length) addModifyRow();
+      if (zone) loadExistingRecords(zone, 'existingRecordsModify', 'mod');
     }
-    if (val === 'delete')  {
+    if (val === 'delete') {
       document.getElementById('section_delete').style.display = '';
-      if (!document.getElementById('tbody_delete').rows.length) addDeleteRow();
+      if (zone) loadExistingRecords(zone, 'existingRecordsDelete', 'del');
     }
     if (val) document.getElementById('section_justification').style.display = '';
   }
@@ -454,31 +537,9 @@
     if (w) w.classList.toggle('show', val.toLowerCase().includes('v=spf1'));
   }
 
-  // ── MODIFY table ──────────────────────────────────────────────────────
-  function addModifyRow() {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><select><option value="">-- Type --</option>${TYPE_OPTS}</select></td>
-      <td><input type="text" placeholder="label" /></td>
-      <td><input type="text" placeholder="current value" /></td>
-      <td><input type="text" placeholder="new value" /></td>
-      <td><input type="text" placeholder="current TTL" /></td>
-      <td><input type="text" placeholder="new TTL" value="300" /></td>
-      <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>`;
-    document.getElementById('tbody_modify').appendChild(tr);
-  }
+  // ── MODIFY table — replaced by AJAX panel + single-row form ──────────
 
-  // ── DELETE table ──────────────────────────────────────────────────────
-  function addDeleteRow() {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><select><option value="">-- Type --</option>${TYPE_OPTS}</select></td>
-      <td><input type="text" placeholder="label"
-        oninput="validateLabel(this.value)" /></td>
-      <td><input type="text" placeholder="value (for verification)" /></td>
-      <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>`;
-    document.getElementById('tbody_delete').appendChild(tr);
-  }
+  // ── DELETE table — replaced by AJAX panel + single-row form ──────────
 
   // ── Delete confirmation modal ─────────────────────────────────────────
   let _deleteModal;
@@ -512,8 +573,7 @@
       alert('Business Justification must be at least 20 characters.'); return;
     }
 
-    // Populate hidden fields from first visible record card
-    const firstCard = document.querySelector('#recCards .rec-card');
+    // Populate hidden fields for each action type.
     if (action === 'create' && firstCard) {
       const type = firstCard.dataset.type;
       const p    = firstCard.querySelector('input[id$="_label"]');
@@ -528,18 +588,31 @@
       if (p && !validateLabel(p.value, null)) return;
     }
 
+    if (action === 'modify') {
+      const label  = (document.getElementById('mod_label').value  || '').trim();
+      const type   = document.getElementById('mod_type').value;
+      const newVal = (document.getElementById('mod_new').value    || '').trim();
+      const ttl    = document.getElementById('mod_ttl').value || '300';
+      if (!label)  { alert('Please enter the label to modify.'); return; }
+      if (!type)   { alert('Please select a record type.'); return; }
+      if (!newVal) { alert('Please enter the new value.'); return; }
+      document.getElementById('h_label').value       = label;
+      document.getElementById('h_record_type').value  = type;
+      document.getElementById('h_value').value        = newVal;
+      document.getElementById('h_ttl').value          = ttl;
+    }
+
     // Delete confirmation modal
     if (action === 'delete') {
-      const firstLabelInput = document.querySelector('#tbody_delete td:nth-child(2) input');
-      const lbl = firstLabelInput ? firstLabelInput.value.trim() : '';
-      if (!lbl) { alert('Please enter at least one label to delete.'); return; }
-
+      const lbl  = (document.getElementById('del_label').value  || '').trim();
+      const type = document.getElementById('del_type').value;
+      const val  = (document.getElementById('del_value').value  || '').trim();
+      if (!lbl)  { alert('Please select a record to delete using the table above.'); return; }
+      if (!type) { alert('Please select a record type.'); return; }
       document.getElementById('h_label').value       = lbl;
-      const firstType = document.querySelector('#tbody_delete td:nth-child(1) select');
-      document.getElementById('h_record_type').value  = firstType ? firstType.value : '';
-      const firstVal  = document.querySelector('#tbody_delete td:nth-child(3) input');
-      document.getElementById('h_value').value        = firstVal ? firstVal.value : '';
-
+      document.getElementById('h_record_type').value  = type;
+      document.getElementById('h_value').value        = val;
+      document.getElementById('h_ttl').value          = '300';
       document.getElementById('deleteConfirmTarget').textContent = lbl;
       document.getElementById('deleteConfirmInput').value = '';
       document.getElementById('deleteConfirmBtn').disabled = true;
@@ -556,9 +629,9 @@
     ['section_create','section_modify','section_delete','section_justification']
       .forEach(id => document.getElementById(id).style.display = 'none');
     document.getElementById('recCards').innerHTML = '';
-    document.getElementById('tbody_modify').innerHTML = '';
-    document.getElementById('tbody_delete').innerHTML = '';
-    document.getElementById('blacklistBanner').classList.remove('show');
+    document.getElementById('blacklistBanner').classList.add('d-none');
+    document.getElementById('existingRecordsModify').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
+    document.getElementById('existingRecordsDelete').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
   }
 </script>
 {% endblock %}

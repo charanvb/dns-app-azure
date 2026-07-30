@@ -23,6 +23,16 @@ class DnsZone:
     record_set_count: int
 
 
+@dataclass
+class DnsRecord:
+    """Lightweight DNS record data transfer object."""
+
+    name: str
+    record_type: str
+    ttl: int
+    value: str
+
+
 class DnsService:
     """Encapsulates all Azure DNS SDK interactions.
 
@@ -53,7 +63,37 @@ class DnsService:
             )
         return result
 
-    def create_or_update_record(
+    def list_records_by_zone(self, resource_group: str, zone: str) -> list[DnsRecord]:
+        """Return all modifiable record sets in a zone, excluding SOA and NS."""
+        results = []
+        for rs in self._client.record_sets.list_by_dns_zone(resource_group, zone):
+            rt = (rs.type or "").split("/")[-1]
+            if rt in ("SOA", "NS"):
+                continue
+            results.append(DnsRecord(
+                name=rs.name,
+                record_type=rt,
+                ttl=rs.ttl or 300,
+                value=self._extract_value(rs),
+            ))
+        return results
+
+    @staticmethod
+    def _extract_value(rs) -> str:
+        """Return a human-readable string for the first/primary record value."""
+        if rs.a_records:
+            return ", ".join(r.ipv4_address for r in rs.a_records)
+        if rs.aaaa_records:
+            return ", ".join(r.ipv6_address for r in rs.aaaa_records)
+        if rs.cname_record:
+            return rs.cname_record.cname or ""
+        if rs.txt_records:
+            return "; ".join(" ".join(t.value) for t in rs.txt_records)
+        if rs.mx_records:
+            return ", ".join(f"{m.preference} {m.exchange}" for m in rs.mx_records)
+        if rs.srv_records:
+            return ", ".join(f"{s.priority} {s.weight} {s.port} {s.target}" for s in rs.srv_records)
+        return ""
         self,
         resource_group: str,
         zone: str,
