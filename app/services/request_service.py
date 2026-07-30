@@ -14,10 +14,7 @@ _RATE_LIMIT_WINDOW = 86400  # seconds
 
 # Zones that must stay in Micetro / go through manual approval.
 BLACKLISTED_DOMAINS: tuple[str, ...] = (
-    "unilever.com",
-    "unilever.co.uk",
-    "unilever.net",
-    "unilever.org",
+    "unilever.com.cn",
 )
 
 _rate_store: dict[str, list[float]] = defaultdict(list)
