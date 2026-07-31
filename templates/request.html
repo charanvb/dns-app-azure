@@ -183,31 +183,19 @@
           <p class="text-muted small">Select a zone to load existing records.</p>
         </div>
 
-        <div class="section-title">Record to Modify</div>
-        <p class="hint mb-3">Click <strong>Use</strong> on a record above to pre-fill, or enter manually.</p>
-        <div class="row g-2 align-items-end">
-          <div class="col-md-2">
-            <label class="form-label small fw-semibold">Type <span class="req">*</span></label>
-            <select id="mod_type" class="form-select form-select-sm">
-              <option value="">-- --</option>
-              <option>A</option><option>AAAA</option><option>CNAME</option><option>TXT</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label small fw-semibold">Label <span class="req">*</span></label>
-            <input type="text" id="mod_label" class="form-control form-control-sm" placeholder="e.g. www" />
-          </div>
-          <div class="col-md-3">
-            <label class="form-label small fw-semibold">Current Value</label>
-            <input type="text" id="mod_current" class="form-control form-control-sm bg-light" readonly placeholder="auto-filled" />
-          </div>
-          <div class="col-md-3">
-            <label class="form-label small fw-semibold">New Value <span class="req">*</span></label>
-            <input type="text" id="mod_new" class="form-control form-control-sm" placeholder="enter new value" />
-          </div>
-          <div class="col-md-2">
-            <label class="form-label small fw-semibold">New TTL</label>
-            <input type="text" id="mod_ttl" class="form-control form-control-sm" value="300" />
+        <!-- Staging table — populated when user clicks Use or Stage to Modify -->
+        <div id="modifyStagingArea" class="d-none mt-3">
+          <div class="section-title">Records to Modify</div>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-1">
+              <thead class="table-light">
+                <tr>
+                  <th>Type</th><th>Label</th><th>Current Value</th>
+                  <th>New Value <span class="req">*</span></th><th>New TTL</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="modifyStageBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -364,20 +352,18 @@
       <div class="table-responsive">
       <table class="table table-sm table-hover table-bordered align-middle mb-1">
         <thead class="table-light"><tr>
-          ${!isModify ? '<th></th>' : ''}
+          <th></th>
           <th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th></th>
         </tr></thead><tbody>`;
 
       records.forEach((r, i) => {
         const esc = s => s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        const chkCell = !isModify
-          ? `<td><input type="checkbox" class="${panelId}_chk" data-idx="${i}"
-              onchange="onCheckboxChange('${panelId}')" /></td>` : '';
+        const chkCell = `<td><input type="checkbox" class="${panelId}_chk" data-idx="${i}"
+              onchange="onCheckboxChange('${panelId}')" /></td>`;
         const btn = isModify
           ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
-              onclick="useRecord('${esc(r.name)}','${r.type}','${esc(r.value)}',${r.ttl})">Use</button>`
-          : `<button type="button" class="btn btn-danger btn-sm py-0 px-2"
-              onclick="deleteRecordDirect('${esc(r.name)}','${r.type}','${esc(r.value)}')">Delete</button>`;
+              onclick="stageRecordForModify('${esc(r.name)}','${r.type}','${esc(r.value)}',${r.ttl})">Use</button>`
+          : '';
         html += `<tr data-search="${(r.name+' '+r.type+' '+r.value).toLowerCase()}">
           ${chkCell}
           <td><span class="badge bg-secondary">${r.type}</span></td>
@@ -388,6 +374,12 @@
 
       html += '</tbody></table></div>';
 
+      if (isModify) {
+        html += `<button type="button" id="${panelId}_batchBtn" class="btn btn-primary btn-sm d-none mt-1"
+          onclick="stageSelectedModifies('${panelId}')">
+          &#9998; Stage to Modify (<span id="${panelId}_selCount">0</span>)
+        </button>`;
+      }
       if (!isModify) {
         html += `<button type="button" id="${panelId}_batchBtn" class="btn btn-danger btn-sm d-none mt-1"
           onclick="stageSelectedDeletes('${panelId}')">
@@ -467,13 +459,41 @@
 
   function fillDeleteRow(name, type, value) { deleteRecordDirect(name, type, value); }
 
+  // Add a record to the modify staging table; prevents duplicates.
+  function stageRecordForModify(name, type, value, ttl) {
+    const body = document.getElementById('modifyStageBody');
+    if ([...body.querySelectorAll('tr')].some(
+        tr => tr.dataset.label === name.toLowerCase() && tr.dataset.type === type.toLowerCase())) {
+      alert(`"${name}" (${type}) is already staged for modification.`);
+      return;
+    }
+    const row = document.createElement('tr');
+    row.dataset.label = name.toLowerCase();
+    row.dataset.type  = type.toLowerCase();
+    const esc = s => s.replace(/"/g,'&quot;');
+    row.innerHTML = `
+      <td><span class="badge bg-secondary">${type}</span><input type="hidden" class="mod-type" value="${esc(type)}" /></td>
+      <td class="fw-semibold">${name}<input type="hidden" class="mod-label" value="${esc(name)}" /></td>
+      <td class="text-break small text-muted">${value}</td>
+      <td><input type="text" class="form-control form-control-sm mod-newval" placeholder="new value" /></td>
+      <td><input type="text" class="form-control form-control-sm mod-ttl" value="${ttl}" style="width:70px" /></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
+          onclick="this.closest('tr').remove(); if(!document.getElementById('modifyStageBody').children.length) document.getElementById('modifyStagingArea').classList.add('d-none')">✕</button></td>`;
+    body.appendChild(row);
+    document.getElementById('modifyStagingArea').classList.remove('d-none');
+    document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
+  }
+
+  function stageSelectedModifies(panelId) {
+    const store = window['_records_' + panelId];
+    if (!store) return;
+    const { records } = store;
+    const idxs = [...document.querySelectorAll(`.${panelId}_chk:checked`)].map(c => parseInt(c.dataset.idx));
+    idxs.map(i => records[i]).filter(Boolean).forEach(r => stageRecordForModify(r.name, r.type, r.value, r.ttl));
+  }
+
   function useRecord(name, type, value, ttl) {
-    document.getElementById('mod_type').value    = type;
-    document.getElementById('mod_label').value   = name;
-    document.getElementById('mod_current').value = value;
-    document.getElementById('mod_new').value     = '';
-    document.getElementById('mod_ttl').value     = ttl;
-    document.getElementById('mod_new').focus();
+    stageRecordForModify(name, type, value, ttl);
   }
 
   function fillDeleteRow(name, type, value) {
@@ -743,17 +763,24 @@
     }
 
     if (action === 'modify') {
-      const label  = (document.getElementById('mod_label').value  || '').trim();
-      const type   = document.getElementById('mod_type').value;
-      const newVal = (document.getElementById('mod_new').value    || '').trim();
-      const ttl    = document.getElementById('mod_ttl').value || '300';
-      if (!label)  { alert('Please enter the label to modify.'); return; }
-      if (!type)   { alert('Please select a record type.'); return; }
-      if (!newVal) { alert('Please enter the new value.'); return; }
-      document.getElementById('h_label').value       = label;
-      document.getElementById('h_record_type').value  = type;
-      document.getElementById('h_value').value        = newVal;
-      document.getElementById('h_ttl').value          = ttl;
+      const rows = [...document.querySelectorAll('#modifyStageBody tr')];
+      if (!rows.length) { alert('Please use the Use button or checkboxes to stage records for modification.'); return; }
+      const modRecords = [];
+      for (let i = 0; i < rows.length; i++) {
+        const newVal = rows[i].querySelector('.mod-newval').value.trim();
+        if (!newVal) { alert(`Row ${i+1}: New Value is required.`); rows[i].querySelector('.mod-newval').focus(); return; }
+        modRecords.push({
+          type:  rows[i].querySelector('.mod-type').value,
+          label: rows[i].querySelector('.mod-label').value,
+          value: newVal,
+          ttl:   rows[i].querySelector('.mod-ttl').value || '300',
+        });
+      }
+      document.getElementById('h_label').value        = modRecords[0].label;
+      document.getElementById('h_record_type').value   = modRecords[0].type;
+      document.getElementById('h_value').value         = modRecords[0].value;
+      document.getElementById('h_ttl').value           = modRecords[0].ttl;
+      document.getElementById('h_records_json').value  = JSON.stringify(modRecords);
     }
 
     if (action === 'delete') {
@@ -775,6 +802,8 @@
     document.getElementById('blacklistBanner').classList.add('d-none');
     document.getElementById('h_records_json').value = '';
     document.getElementById('existingRecordsModify').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
+    document.getElementById('modifyStagingArea').classList.add('d-none');
+    document.getElementById('modifyStageBody').innerHTML = '';
     document.getElementById('existingRecordsDelete').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
     document.getElementById('deleteReviewPanel').classList.add('d-none');
     document.getElementById('deleteReviewTable').innerHTML = '';
