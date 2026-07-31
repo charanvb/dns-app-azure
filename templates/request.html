@@ -340,7 +340,7 @@
       <div class="table-responsive">
       <table class="table table-sm table-hover table-bordered align-middle mb-1">
         <thead class="table-light"><tr>
-          ${!isModify ? `<th><input type="checkbox" id="${panelId}_all" onchange="toggleAllCheckboxes('${panelId}',this.checked)" title="Select all"/></th>` : ''}
+          ${!isModify ? '<th></th>' : ''}
           <th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th></th>
         </tr></thead><tbody>`;
 
@@ -391,13 +391,18 @@
 
   function onCheckboxChange(panelId) {
     const count = document.querySelectorAll(`.${panelId}_chk:checked`).length;
+    if (count > 5) {
+      event.target.checked = false;
+      alert('You can select a maximum of 5 records at a time.');
+      return;
+    }
     const btn = document.getElementById(`${panelId}_batchBtn`);
     const cnt = document.getElementById(`${panelId}_selCount`);
     if (btn) btn.classList.toggle('d-none', count === 0);
     if (cnt) cnt.textContent = count;
   }
 
-  // Delete a single record directly from the records table (bypasses Submit button).
+  // Delete a single record directly — no modal, no typing required.
   function deleteRecordDirect(name, type, value) {
     const justif = (document.getElementById('justification').value || '').trim();
     if (justif.length < 20) {
@@ -405,21 +410,17 @@
       document.getElementById('justification').focus();
       return;
     }
-    // Set hidden fields and open confirmation modal immediately.
-    document.getElementById('del_type').value  = type;
-    document.getElementById('del_label').value = name;
-    document.getElementById('del_value').value = value;
+    document.getElementById('del_type').value       = type;
+    document.getElementById('del_label').value      = name;
+    document.getElementById('del_value').value      = value;
     document.getElementById('h_label').value        = name;
-    document.getElementById('h_record_type').value   = type;
-    document.getElementById('h_value').value         = value;
-    document.getElementById('h_ttl').value           = '300';
-    document.getElementById('deleteConfirmTarget').textContent = name;
-    document.getElementById('deleteConfirmInput').value = '';
-    document.getElementById('deleteConfirmBtn').disabled = true;
-    getDeleteModal().show();
+    document.getElementById('h_record_type').value  = type;
+    document.getElementById('h_value').value        = value;
+    document.getElementById('h_ttl').value          = '300';
+    document.getElementById('srForm').submit();
   }
 
-  // Batch delete selected records via AJAX (no page reload).
+  // Batch delete selected records via AJAX — no confirmation dialog required.
   async function deleteSelectedRecords(panelId) {
     const store = window['_records_' + panelId];
     if (!store) return;
@@ -435,9 +436,6 @@
       return;
     }
 
-    const names = selected.map(r => `• ${r.type} ${r.name}`).join('\n');
-    if (!confirm(`Delete ${selected.length} record(s)?\n\n${names}\n\nThis cannot be undone.`)) return;
-
     let ok = 0, failed = [];
     for (const r of selected) {
       try {
@@ -452,10 +450,7 @@
       } catch(e) { failed.push(`${r.name}: ${e.message}`); }
     }
 
-    const msg = failed.length
-      ? `Deleted ${ok}. Failed:\n${failed.join('\n')}`
-      : `✅ Deleted ${ok} record(s).`;
-    alert(msg);
+    alert(failed.length ? `Deleted ${ok}. Failed:\n${failed.join('\n')}` : `✅ Deleted ${ok} record(s).`);
     loadExistingRecords(zone, panelId, 'del');
   }
 
@@ -717,17 +712,12 @@
       const lbl  = (document.getElementById('del_label').value  || '').trim();
       const type = document.getElementById('del_type').value;
       const val  = (document.getElementById('del_value').value  || '').trim();
-      if (!lbl)  { alert('Please select a record to delete using the table above.'); return; }
+      if (!lbl)  { alert('Please click Delete on a record above.'); return; }
       if (!type) { alert('Please select a record type.'); return; }
       document.getElementById('h_label').value       = lbl;
       document.getElementById('h_record_type').value  = type;
       document.getElementById('h_value').value        = val;
       document.getElementById('h_ttl').value          = '300';
-      document.getElementById('deleteConfirmTarget').textContent = lbl;
-      document.getElementById('deleteConfirmInput').value = '';
-      document.getElementById('deleteConfirmBtn').disabled = true;
-      getDeleteModal().show();
-      return;
     }
 
     this.submit();
