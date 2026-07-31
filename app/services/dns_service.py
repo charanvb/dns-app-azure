@@ -71,6 +71,9 @@ class DnsService:
         
         logger.info(f"[DnsService] list_records_by_zone - rg={resource_group}, zone={zone}, top={top}, search={search_suffix}")
         
+        # Azure DNS API max limit is 1000 per request
+        AZURE_MAX_LIMIT = 1000
+        
         if search_suffix:
             # Search: load ALL records from Azure then filter by substring on name.
             logger.info("[DnsService] Using search mode - loading all records then filtering")
@@ -84,12 +87,15 @@ class DnsService:
             is_limited = len(raw) > top
             raw = raw[:top]
         else:
-            logger.info(f"[DnsService] Using direct mode - loading top={top+1} records")
+            # Cap at Azure's maximum limit of 1000
+            fetch_top = min(top + 1, AZURE_MAX_LIMIT)
+            logger.info(f"[DnsService] Using direct mode - loading top={fetch_top} records (capped at {AZURE_MAX_LIMIT})")
             raw = executor.list_zone_records(
-                self._client, resource_group, zone, top=top + 1
+                self._client, resource_group, zone, top=fetch_top
             )
             logger.info(f"[DnsService] Loaded {len(raw)} raw records from Azure")
-            is_limited = len(raw) > top
+            # If we got the max limit, there might be more
+            is_limited = len(raw) >= AZURE_MAX_LIMIT or len(raw) > top
             raw = raw[:top]
 
         records = []

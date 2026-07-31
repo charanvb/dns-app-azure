@@ -137,12 +137,15 @@ async def get_zone_records(zone: str, search: str = "", limit: int = 10000) -> J
     try:
         service = _get_dns_service()
         search_suffix = search.strip() or None
-        # Cap at 10k to prevent overload
-        logger.info(f"[API] Calling service.list_records_by_zone with top={min(limit, 10000)}, search_suffix={search_suffix}")
+        # Azure DNS API has a max limit of 1000 records per request
+        # Cap at 1000 to comply with Azure's constraint
+        AZURE_MAX_LIMIT = 1000
+        effective_limit = min(limit, AZURE_MAX_LIMIT)
+        logger.info(f"[API] Calling service.list_records_by_zone with top={effective_limit}, search_suffix={search_suffix}")
         records, is_limited = service.list_records_by_zone(
             settings.dns_resource_group,
             zone,
-            top=min(limit, 10000),
+            top=effective_limit,
             search_suffix=search_suffix,
         )
         

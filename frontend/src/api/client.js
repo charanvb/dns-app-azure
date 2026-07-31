@@ -41,7 +41,8 @@ export const api = {
     return handleResponse(response);
   },
 
-  async getZoneRecords(zone, search = '', limit = 10000) {
+  async getZoneRecords(zone, search = '', limit = 1000) {
+    // Azure DNS API max limit is 1000 records per request
     const params = new URLSearchParams({ zone, limit: limit.toString() });
     if (search) params.append('search', search);
     const response = await fetch(`${API_BASE_URL}/api/zones/records?${params}`);

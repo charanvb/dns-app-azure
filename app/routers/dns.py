@@ -37,14 +37,18 @@ async def list_zones(request: Request) -> HTMLResponse:
 
 
 @router.get("/records", summary="List records in a zone (JSON)")
-async def list_zone_records(zone: str, search: str = "", limit: int = 10000) -> JSONResponse:
-    """Return up to 10,000 records for the request form. Includes is_limited flag."""
+async def list_zone_records(zone: str, search: str = "", limit: int = 1000) -> JSONResponse:
+    """Return up to 1000 records for the request form. Includes is_limited flag.
+    
+    Azure DNS API has a maximum limit of 1000 records per request.
+    """
     try:
         svc = DnsService(settings.dns_subscription_id)
         search_suffix = search.strip() or None
+        # Azure DNS API max limit is 1000
         records, is_limited = svc.list_records_by_zone(
             settings.dns_resource_group, zone,
-            top=min(limit, 10000),  # Cap at 10k to prevent overload
+            top=min(limit, 1000),  # Cap at 1000 (Azure's max)
             search_suffix=search_suffix,
         )
         return JSONResponse({
