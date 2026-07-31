@@ -215,11 +215,18 @@
       <!-- ══ DELETE ══════════════════════════════════════════════════════ -->
       <div id="section_delete" style="display:none">
         <div class="section-title">Existing Records</div>
-        <p class="hint mb-2">Select records to delete using the checkboxes or the Delete button. Then fill in the justification and click Submit Request.</p>
+        <p class="hint mb-2">Check the records you want to delete, then click <strong>Review &amp; Delete</strong>.</p>
         <div id="existingRecordsDelete">
           <p class="text-muted small">Select a zone to load existing records.</p>
         </div>
-        <!-- Hidden fields populated by deleteRecordDirect / deleteSelectedRecords -->
+
+        <!-- Shown after user clicks Review & Delete -->
+        <div id="deleteReviewPanel" class="d-none mt-3">
+          <div class="section-title text-danger">&#x26A0; Records Staged for Deletion</div>
+          <div id="deleteReviewTable"></div>
+          <p class="small text-muted mt-1">Fill in the justification below and click <strong>Submit Request</strong> to execute.</p>
+        </div>
+
         <input type="hidden" id="del_type" />
         <input type="hidden" id="del_label" />
         <input type="hidden" id="del_value" />
@@ -352,8 +359,8 @@
 
       if (!isModify) {
         html += `<button type="button" id="${panelId}_batchBtn" class="btn btn-danger btn-sm d-none mt-1"
-          onclick="deleteSelectedRecords('${panelId}')">
-          &#128465; Delete Selected (<span id="${panelId}_selCount">0</span>)
+          onclick="stageSelectedDeletes('${panelId}')">
+          &#128465; Review &amp; Delete (<span id="${panelId}_selCount">0</span>)
         </button>`;
       }
 
@@ -388,21 +395,8 @@
     if (cnt) cnt.textContent = count;
   }
 
-  // Pre-fill hidden delete fields from a single record row click.
-  function deleteRecordDirect(name, type, value) {
-    document.getElementById('h_records_json').value = '';
-    document.getElementById('del_type').value        = type;
-    document.getElementById('del_label').value       = name;
-    document.getElementById('del_value').value       = value;
-    document.getElementById('h_label').value         = name;
-    document.getElementById('h_record_type').value   = type;
-    document.getElementById('h_value').value         = value;
-    document.getElementById('h_ttl').value           = '300';
-    document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
-  }
-
-  // Stage selected records for batch deletion — user reviews then clicks Submit Request.
-  function deleteSelectedRecords(panelId) {
+  // Show inline review panel for staged deletions — no execution yet.
+  function stageSelectedDeletes(panelId) {
     const store = window['_records_' + panelId];
     if (!store) return;
     const { records, zone } = store;
@@ -412,12 +406,35 @@
 
     const payload = selected.map(r => ({ type: r.type, label: r.name, value: r.value, ttl: 300 }));
     document.getElementById('h_records_json').value = JSON.stringify(payload);
-    // Show a summary in the Record to Delete row so the user knows what is staged.
-    document.getElementById('del_label').value = selected.map(r => r.name).join(', ');
-    document.getElementById('del_type').value  = selected.length === 1 ? selected[0].type : '';
-    document.getElementById('del_value').value = `${selected.length} record(s) staged for deletion`;
+
+    // Render the inline review table.
+    let tbl = `<div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-1">
+      <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Value</th></tr></thead><tbody>`;
+    selected.forEach(r => {
+      tbl += `<tr><td><span class="badge bg-danger">${r.type}</span></td>
+        <td class="fw-semibold">${r.name}</td>
+        <td class="text-break small">${r.value}</td></tr>`;
+    });
+    tbl += '</tbody></table></div>';
+    document.getElementById('deleteReviewTable').innerHTML = tbl;
+    document.getElementById('deleteReviewPanel').classList.remove('d-none');
     document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
   }
+
+  // deleteRecordDirect kept for single-row click support.
+  function deleteRecordDirect(name, type, value) {
+    document.getElementById('h_records_json').value = '';
+    document.getElementById('del_label').value = name;
+    document.getElementById('del_type').value  = type;
+    document.getElementById('del_value').value = value;
+    document.getElementById('h_label').value        = name;
+    document.getElementById('h_record_type').value  = type;
+    document.getElementById('h_value').value        = value;
+    document.getElementById('h_ttl').value          = '300';
+    document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
+  }
+
+  function fillDeleteRow(name, type, value) { deleteRecordDirect(name, type, value); }
 
   function useRecord(name, type, value, ttl) {
     document.getElementById('mod_type').value    = type;
@@ -682,17 +699,9 @@
     }
 
     if (action === 'delete') {
-      // Multi-select: h_records_json already set by deleteSelectedRecords.
+      // h_records_json is set by stageSelectedDeletes; require at least one record staged.
       if (!document.getElementById('h_records_json').value) {
-        const lbl  = (document.getElementById('del_label').value  || '').trim();
-        const type = document.getElementById('del_type').value;
-        const val  = (document.getElementById('del_value').value  || '').trim();
-        if (!lbl)  { alert('Please click Delete on a record above.'); return; }
-        if (!type) { alert('Please select a record type.'); return; }
-        document.getElementById('h_label').value        = lbl;
-        document.getElementById('h_record_type').value   = type;
-        document.getElementById('h_value').value         = val;
-        document.getElementById('h_ttl').value           = '300';
+        alert('Please select at least one record to delete.'); return;
       }
     }
 
@@ -709,6 +718,8 @@
     document.getElementById('h_records_json').value = '';
     document.getElementById('existingRecordsModify').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
     document.getElementById('existingRecordsDelete').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
+    document.getElementById('deleteReviewPanel').classList.add('d-none');
+    document.getElementById('deleteReviewTable').innerHTML = '';
   }
 </script>
 {% endblock %}
