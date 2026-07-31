@@ -47,6 +47,7 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
       type: 'A',
       label: '',
       value: '',
+      txtValues: [''], // For TXT records with multiple values
       ttl: 300,
       error: null,
     };
@@ -62,20 +63,83 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
     onRecordsChange(updated);
   };
 
+  const addTxtValue = (id) => {
+    const updated = records.map((r) => {
+      if (r.id !== id) return r;
+      return { ...r, txtValues: [...r.txtValues, ''] };
+    });
+    setRecords(updated);
+  };
+
+  const removeTxtValue = (id, index) => {
+    const updated = records.map((r) => {
+      if (r.id !== id) return r;
+      const newTxtValues = r.txtValues.filter((_, i) => i !== index);
+      return { ...r, txtValues: newTxtValues.length > 0 ? newTxtValues : [''] };
+    });
+    setRecords(updated);
+    updateValidRecords(updated);
+  };
+
+  const updateTxtValue = (id, index, value) => {
+    const updated = records.map((r) => {
+      if (r.id !== id) return r;
+      const newTxtValues = [...r.txtValues];
+      newTxtValues[index] = value;
+      return { ...r, txtValues: newTxtValues, error: null };
+    });
+    setRecords(updated);
+    updateValidRecords(updated);
+  };
+
+  const updateValidRecords = (currentRecords) => {
+    const validRecords = currentRecords
+      .filter((r) => !r.error && r.label && ((r.type === 'TXT' && r.txtValues.some(v => v.trim())) || (r.type !== 'TXT' && r.value)))
+      .map((r) => {
+        if (r.type === 'TXT') {
+          return {
+            type: r.type,
+            label: r.label,
+            value: r.txtValues.filter(v => v.trim()).join('|'), // Join with pipe for backend
+            ttl: r.ttl
+          };
+        }
+        return {
+          type: r.type,
+          label: r.label,
+          value: r.value,
+          ttl: r.ttl
+        };
+      });
+    onRecordsChange(validRecords);
+  };
+
   const updateRecord = (id, field, value) => {
     const updated = records.map((r) => {
       if (r.id !== id) return r;
 
       const updatedRecord = { ...r, [field]: value, error: null };
 
-      // Validate on the fly
+      // Clear txtValues when switching away from TXT
+      if (field === 'type' && value !== 'TXT') {
+        updatedRecord.txtValues = [''];
+        updatedRecord.value = '';
+      }
+
+      // Strict validation based on record type
       if (field === 'value' && value) {
-        if (r.type === 'A' && !validateIPv4(value)) {
-          updatedRecord.error = 'Invalid IPv4 address';
-        } else if (r.type === 'AAAA' && !validateIPv6(value)) {
-          updatedRecord.error = 'Invalid IPv6 address';
-        } else if (r.type === 'CNAME' && !validateFQDN(value)) {
-          updatedRecord.error = 'Must be a fully qualified domain name';
+        if (r.type === 'A') {
+          if (!validateIPv4(value)) {
+            updatedRecord.error = 'A records must contain a valid IPv4 address only';
+          }
+        } else if (r.type === 'AAAA') {
+          if (!validateIPv6(value)) {
+            updatedRecord.error = 'AAAA records must contain a valid IPv6 address only';
+          }
+        } else if (r.type === 'CNAME') {
+          if (!validateFQDN(value)) {
+            updatedRecord.error = 'CNAME records must contain a valid fully qualified domain name only';
+          }
         }
       }
 
@@ -93,7 +157,7 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
     });
 
     setRecords(updated);
-    onRecordsChange(updated.filter((r) => !r.error && r.label && r.value));
+    updateValidRecords(updated);
   };
 
   return (
@@ -145,14 +209,53 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
                 placeholder="subdomain or @"
               />
 
-              <Input
-                label="Value"
-                required
-                value={record.value}
-                onChange={(e) => updateRecord(record.id, 'value', e.target.value)}
-                placeholder={RECORD_PLACEHOLDERS[record.type]}
-                error={record.error}
-              />
+              {record.type === 'TXT' ? (
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    TXT Values <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    TXT records can have multiple values. Click "Add Value" to add more.
+                  </p>
+                  {record.txtValues.map((txtValue, txtIdx) => (
+                    <div key={txtIdx} className="flex gap-2">
+                      <input
+                        type="text"
+                        className="input flex-1"
+                        placeholder={RECORD_PLACEHOLDERS.TXT}
+                        value={txtValue}
+                        onChange={(e) => updateTxtValue(record.id, txtIdx, e.target.value)}
+                      />
+                      {record.txtValues.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTxtValue(record.id, txtIdx)}
+                          className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addTxtValue(record.id)}
+                  >
+                    <Plus className="w-4 h-4" /> Add TXT Value
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  label={`Value ${record.type === 'A' ? '(IPv4 only)' : record.type === 'AAAA' ? '(IPv6 only)' : record.type === 'CNAME' ? '(FQDN only)' : ''}`}
+                  required
+                  value={record.value}
+                  onChange={(e) => updateRecord(record.id, 'value', e.target.value)}
+                  placeholder={RECORD_PLACEHOLDERS[record.type]}
+                  error={record.error}
+                />
+              )}
 
               <Input
                 label="TTL (seconds)"
@@ -165,10 +268,16 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
               />
             </div>
 
-            {record.type === 'TXT' && record.value.toLowerCase().startsWith('v=spf1') && (
+            {record.type === 'TXT' && record.txtValues.some(v => v.toLowerCase().startsWith('v=spf1')) && (
               <Alert variant="warning" className="mt-3">
                 SPF record detected. Ensure no existing SPF exists for this label to avoid mail
                 delivery issues.
+              </Alert>
+            )}
+            
+            {record.error && (
+              <Alert variant="error" className="mt-3">
+                {record.error}
               </Alert>
             )}
           </div>

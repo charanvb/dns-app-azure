@@ -328,8 +328,16 @@ export default function RequestPage() {
                             </span>
                           </td>
                           <td className="px-4 py-2 font-medium">{record.label}</td>
-                          <td className="px-4 py-2 text-sm text-gray-600 max-w-md truncate">
-                            {record.value}
+                          <td className="px-4 py-2 text-sm text-gray-600 max-w-md">
+                            {record.type === 'TXT' && record.value.includes('|') ? (
+                              <div className="space-y-1">
+                                {record.value.split('|').map((val, idx) => (
+                                  <div key={idx} className="text-xs bg-gray-50 p-1 rounded">{val}</div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="break-all">{String(record.value)}</span>
+                            )}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600">{record.ttl}s</td>
                         </tr>

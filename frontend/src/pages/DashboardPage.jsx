@@ -6,12 +6,19 @@ import Button from '../components/shared/Button';
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Welcome to Azure DNS Portal</h1>
-        <p className="mt-2 text-gray-600">
-          Self-service DNS management for enterprise Azure infrastructure
-        </p>
-      </div>
+      <Card className="bg-gradient-to-r from-primary-50 to-primary-100 border-primary-200">
+        <div className="text-center py-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">
+            Welcome to Unilever DNS Self Service Portal
+          </h1>
+          <p className="text-lg text-gray-700 mb-4">
+            This portal is to perform create/update/delete records for domains managed by Cloud BAU team.
+          </p>
+          <p className="text-sm text-gray-600">
+            For any support, reach <a href="mailto:UL_cloudops@hcltech.com" className="text-primary-600 hover:underline font-medium">UL_cloudops@hcltech.com</a>
+          </p>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="hover:shadow-md transition-shadow">
