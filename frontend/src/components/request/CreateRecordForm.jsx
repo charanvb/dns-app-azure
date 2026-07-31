@@ -78,13 +78,13 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
 
     const updated = [...records, newRecord];
     setRecords(updated);
-    onRecordsChange(updated);
+    updateValidRecords(updated);
   };
 
   const removeRecord = (id) => {
     const updated = records.filter((r) => r.id !== id);
     setRecords(updated);
-    onRecordsChange(updated);
+    updateValidRecords(updated);
   };
 
   const addTxtValue = (id) => {
@@ -93,6 +93,7 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
       return { ...r, txtValues: [...r.txtValues, ''] };
     });
     setRecords(updated);
+    updateValidRecords(updated);
   };
 
   const removeTxtValue = (id, index) => {
@@ -118,13 +119,22 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
 
   const updateValidRecords = (currentRecords) => {
     const validRecords = currentRecords
-      .filter((r) => !r.error && r.label && ((r.type === 'TXT' && r.txtValues.some(v => v.trim())) || (r.type !== 'TXT' && r.value)))
+      .filter((r) => {
+        // For TXT: need at least one non-empty value
+        if (r.type === 'TXT') {
+          return !r.error && r.label && r.txtValues.some(v => v.trim());
+        }
+        // For other types: need value
+        return !r.error && r.label && r.value;
+      })
       .map((r) => {
         if (r.type === 'TXT') {
+          // Filter out empty values and join with pipe
+          const filteredValues = r.txtValues.filter(v => v.trim());
           return {
             type: r.type,
             label: r.label,
-            value: r.txtValues.filter(v => v.trim()).join('|'), // Join with pipe for backend
+            value: filteredValues.join('|'), // Join with pipe for backend
             ttl: r.ttl
           };
         }

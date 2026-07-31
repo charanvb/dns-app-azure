@@ -123,18 +123,19 @@ async def get_zones(
 
 
 @router.get("/records", summary="Get records in a zone (JSON)")
-async def get_zone_records(zone: str, search: str = "", limit: int = 100) -> JSONResponse:
-    """Return records for a specific zone with optional search."""
+async def get_zone_records(zone: str, search: str = "", limit: int = 10000) -> JSONResponse:
+    """Return up to 10,000 records for a specific zone with optional search."""
     if not zone:
         return JSONResponse({"error": "zone parameter is required"}, status_code=400)
     
     try:
         service = _get_dns_service()
         search_suffix = search.strip() or None
+        # Cap at 10k to prevent overload
         records, is_limited = service.list_records_by_zone(
             settings.dns_resource_group,
             zone,
-            top=limit,
+            top=min(limit, 10000),
             search_suffix=search_suffix,
         )
         

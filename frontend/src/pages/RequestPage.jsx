@@ -17,11 +17,13 @@ import DeleteRecordForm from '../components/request/DeleteRecordForm';
 
 const BLACKLISTED_DOMAINS = [
   'micetro.example.com',
-  // Add more restricted domains here as needed
+  'unilever.com.cn',
+  'unileverdigital.com',
+  // Add more blocked domains here as needed
 ];
 
 const RESTRICTED_DOMAINS = [
-  // Domains that require Cloud Ops approval
+  // Domains that require Cloud Ops approval (warning only)
   // Example: 'critical.example.com',
 ];
 
