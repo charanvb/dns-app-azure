@@ -307,6 +307,37 @@
       const action = document.getElementById('action').value;
       if (action === 'modify') loadExistingRecords(z, 'existingRecordsModify', 'mod');
       if (action === 'delete') loadExistingRecords(z, 'existingRecordsDelete', 'del');
+      if (action === 'create') fetchCreateZoneRecords(z);
+    }
+  }
+
+  // Silently fetch existing records for the selected zone to power create-mode validation.
+  async function fetchCreateZoneRecords(zone) {
+    try {
+      const resp = await fetch(`/zones/records?zone=${encodeURIComponent(zone)}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        window._createZoneRecords = Array.isArray(data) ? data : [];
+      }
+    } catch(e) { window._createZoneRecords = []; }
+  }
+
+  // Check if a label already exists in the zone; called on label input blur.
+  function checkLabelExists(label, pfx, type) {
+    const errEl = document.getElementById(`${pfx}_existErr`);
+    if (!errEl || !label || label === '@') {
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      return;
+    }
+    const records = window._createZoneRecords || [];
+    const conflict = records.find(
+      r => r.name.toLowerCase() === label.toLowerCase() && r.type.toLowerCase() === type.toLowerCase()
+    );
+    if (conflict) {
+      errEl.textContent = `⚠ A ${type} record "${label}" already exists (${conflict.value}). Use Modify to update it.`;
+      errEl.style.display = 'block';
+    } else {
+      errEl.textContent = ''; errEl.style.display = 'none';
     }
   }
 
@@ -454,7 +485,10 @@
     ['section_create','section_modify','section_delete','section_justification']
       .forEach(id => document.getElementById(id).style.display = 'none');
     const zone = document.getElementById('zone').value;
-    if (val === 'create') document.getElementById('section_create').style.display = '';
+    if (val === 'create') {
+      document.getElementById('section_create').style.display = '';
+      if (zone) fetchCreateZoneRecords(zone);
+    }
     if (val === 'modify') {
       document.getElementById('section_modify').style.display = '';
       if (zone) loadExistingRecords(zone, 'existingRecordsModify', 'mod');
@@ -538,8 +572,10 @@
       <div class="fl">
         <label>Label / Host <span class="req">*</span></label>
         <input type="text" id="${pfx}_label" placeholder="e.g. www  or @ for zone root"
-          oninput="validateLabel(this.value,'${pfx}_lerr')" />
+          oninput="validateLabel(this.value,'${pfx}_lerr')"
+          onblur="checkLabelExists(this.value,'${pfx}','${type}')" />
         <div class="field-err" id="${pfx}_lerr"></div>
+        <div id="${pfx}_existErr" style="font-size:11px;color:#e65100;margin-top:2px;display:none"></div>
       </div>`;
     const ttlF = (pfx) => `
       <div class="fl">
@@ -675,6 +711,28 @@
         if (!lbl) { alert(`Record ${i+1}: Label is required.`); if (p) p.focus(); return; }
         if (!validateLabel(lbl, null)) return;
         allRecords.push({ type, label: lbl, value: v ? v.value.trim() : '', ttl: t ? t.value : '300' });
+      }
+      // Block duplicates within this batch.
+      const seen = new Set();
+      for (let i = 0; i < allRecords.length; i++) {
+        const key = `${allRecords[i].type}:${allRecords[i].label.toLowerCase()}`;
+        if (seen.has(key)) {
+          alert(`Record ${i+1}: a ${allRecords[i].type} record for "${allRecords[i].label}" is already in this request. Remove the duplicate.`);
+          return;
+        }
+        seen.add(key);
+      }
+      // Block labels that already exist in the zone.
+      const existing = window._createZoneRecords || [];
+      for (let i = 0; i < allRecords.length; i++) {
+        const rec = allRecords[i];
+        const conflict = existing.find(
+          r => r.name.toLowerCase() === rec.label.toLowerCase() && r.type.toLowerCase() === rec.type.toLowerCase()
+        );
+        if (conflict) {
+          alert(`Record ${i+1}: a ${rec.type} record for "${rec.label}" already exists in this zone (${conflict.value}).\nUse Modify to update it.`);
+          return;
+        }
       }
       // First record goes to single-record fields; all records go into records_json.
       document.getElementById('h_label').value        = allRecords[0].label;
