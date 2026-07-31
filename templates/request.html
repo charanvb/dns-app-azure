@@ -362,7 +362,7 @@
               onchange="onCheckboxChange('${panelId}')" /></td>`;
         const btn = isModify
           ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
-              onclick="stageRecordForModify('${esc(r.name)}','${r.type}','${esc(r.value)}',${r.ttl})">Use</button>`
+              onclick="stageRecordForModify('${esc(r.name)}','${r.type}','${esc(r.value)}',${r.ttl},${JSON.stringify(r.raw_values||[])})">Use</button>`
           : '';
         html += `<tr data-search="${(r.name+' '+r.type+' '+r.value).toLowerCase()}">
           ${chkCell}
@@ -457,7 +457,18 @@
     document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
   }
 
-  function fillDeleteRow(name, type, value) { deleteRecordDirect(name, type, value); }
+  function stageSelectedModifies(panelId) {
+    const store = window['_records_' + panelId];
+    if (!store) return;
+    const { records } = store;
+    const idxs = [...document.querySelectorAll(`.${panelId}_chk:checked`)].map(c => parseInt(c.dataset.idx));
+    idxs.map(i => records[i]).filter(Boolean)
+        .forEach(r => stageRecordForModify(r.name, r.type, r.value, r.ttl, r.raw_values || []));
+  }
+
+  function useRecord(name, type, value, ttl) {
+    stageRecordForModify(name, type, value, ttl, []);
+  }
 
   // Add a record to the modify staging table; prevents duplicates.
   function stageRecordForModify(name, type, value, ttl) {
@@ -494,6 +505,19 @@
 
   function useRecord(name, type, value, ttl) {
     stageRecordForModify(name, type, value, ttl);
+  }
+
+  function stageSelectedModifies(panelId) {
+    const store = window['_records_' + panelId];
+    if (!store) return;
+    const { records } = store;
+    const idxs = [...document.querySelectorAll(`.${panelId}_chk:checked`)].map(c => parseInt(c.dataset.idx));
+    idxs.map(i => records[i]).filter(Boolean)
+        .forEach(r => stageRecordForModify(r.name, r.type, r.value, r.ttl, r.raw_values || []));
+  }
+
+  function useRecord(name, type, value, ttl, rawValues) {
+    stageRecordForModify(name, type, value, ttl, rawValues || []);
   }
 
   function fillDeleteRow(name, type, value) {
@@ -600,7 +624,7 @@
     const ttlF = (pfx) => `
       <div class="fl">
         <label>TTL (s)</label>
-        <input type="text" id="${pfx}_ttl" value="300" />
+        <input type="text" id="${pfx}_ttl" value="300" oninput="this.value=this.value.replace(/\\D/g,'')" />
       </div>`;
 
     let body = '';
@@ -639,14 +663,16 @@
     } else if (type === 'TXT') {
       body = `${nameF(p)}
         <div class="fl" style="margin-top:8px">
-          <label>Value <span class="req">*</span></label>
-          <textarea id="${p}_val" placeholder='e.g. "v=spf1 include:example.com -all"'
-            oninput="checkSpfWarn('${p}_spfw',this.value)"></textarea>
-          <div class="spf-warn" id="${p}_spfw">
-            ⚠️ <strong>SPF record detected.</strong> Before creating, verify that no
-            existing SPF record exists for this label — duplicate SPF records cause mail
-            delivery failures. Ask your DNS admin to check first.
+          <label>Values <span class="req">*</span></label>
+          <div id="${p}_vals">
+            <div class="input-group input-group-sm mb-1">
+              <input type="text" data-txt-val placeholder='e.g. v=spf1 include:example.com -all'
+                class="form-control" oninput="checkTxtSpf('${p}')" />
+              <button type="button" class="btn btn-outline-secondary" onclick="removeTxtVal(this,'${p}')">✕</button>
+            </div>
           </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm mt-1" onclick="addTxtVal('${p}')">+ Add Value</button>
+          <div id="${p}_spfw" style="font-size:11px;color:#e65100;margin-top:4px;display:none"></div>
         </div>
         <div class="row2" style="margin-top:8px">${ttlF(p)}<div></div></div>`;
 
@@ -725,12 +751,23 @@
         const card  = allCards[i];
         const type  = card.dataset.type;
         const p     = card.querySelector('input[id$="_label"]');
-        const v     = card.querySelector('input[id$="_val"], textarea[id$="_val"]');
         const t     = card.querySelector('input[id$="_ttl"]');
         const lbl   = p ? p.value.trim() : '';
         if (!lbl) { alert(`Record ${i+1}: Label is required.`); if (p) p.focus(); return; }
         if (!validateLabel(lbl, null)) return;
-        allRecords.push({ type, label: lbl, value: v ? v.value.trim() : '', ttl: t ? t.value : '300' });
+        let val;
+        if (type === 'TXT') {
+          const txtVals = [...card.querySelectorAll('[data-txt-val]')].map(i => i.value.trim()).filter(Boolean);
+          if (!txtVals.length) { alert(`Record ${i+1}: At least one TXT value is required.`); return; }
+          if (txtVals.filter(v => v.toLowerCase().startsWith('v=spf1')).length > 1) {
+            alert(`Record ${i+1}: Only one SPF value is allowed per record.`); return;
+          }
+          val = JSON.stringify(txtVals);
+        } else {
+          const v = card.querySelector('input[id$="_val"], textarea[id$="_val"]');
+          val = v ? v.value.trim() : '';
+        }
+        allRecords.push({ type, label: lbl, value: val, ttl: t ? t.value : '300' });
       }
       // Block duplicates within this batch.
       const seen = new Set();
@@ -767,14 +804,22 @@
       if (!rows.length) { alert('Please use the Use button or checkboxes to stage records for modification.'); return; }
       const modRecords = [];
       for (let i = 0; i < rows.length; i++) {
-        const newVal = rows[i].querySelector('.mod-newval').value.trim();
-        if (!newVal) { alert(`Row ${i+1}: New Value is required.`); rows[i].querySelector('.mod-newval').focus(); return; }
-        modRecords.push({
-          type:  rows[i].querySelector('.mod-type').value,
-          label: rows[i].querySelector('.mod-label').value,
-          value: newVal,
-          ttl:   rows[i].querySelector('.mod-ttl').value || '300',
-        });
+        const type  = rows[i].querySelector('.mod-type').value;
+        const label = rows[i].querySelector('.mod-label').value;
+        const ttl   = rows[i].querySelector('.mod-ttl').value || '300';
+        let value;
+        if (type.toUpperCase() === 'TXT') {
+          const txtVals = [...rows[i].querySelectorAll('[data-txt-val]')].map(i => i.value.trim()).filter(Boolean);
+          if (!txtVals.length) { alert(`Row ${i+1}: At least one TXT value is required.`); return; }
+          if (txtVals.filter(v => v.toLowerCase().startsWith('v=spf1')).length > 1) {
+            alert(`Row ${i+1}: Only one SPF value is allowed per record.`); return;
+          }
+          value = JSON.stringify(txtVals);
+        } else {
+          value = rows[i].querySelector('.mod-newval')?.value.trim() || '';
+          if (!value) { alert(`Row ${i+1}: New Value is required.`); rows[i].querySelector('.mod-newval')?.focus(); return; }
+        }
+        modRecords.push({ type, label, value, ttl });
       }
       document.getElementById('h_label').value        = modRecords[0].label;
       document.getElementById('h_record_type').value   = modRecords[0].type;

@@ -43,7 +43,7 @@ async def list_zone_records(zone: str) -> JSONResponse:
         svc = DnsService(settings.dns_subscription_id)
         records = svc.list_records_by_zone(settings.dns_resource_group, zone)
         return JSONResponse([
-            {"name": r.name, "type": r.record_type, "ttl": r.ttl, "value": r.value}
+            {"name": r.name, "type": r.record_type, "ttl": r.ttl, "value": r.value, "raw_values": r.raw_values}
             for r in records
         ])
     except Exception as exc:  # noqa: BLE001

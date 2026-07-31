@@ -1,6 +1,7 @@
 """DNS management service — all azure-mgmt-dns SDK calls live here."""
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.dns import DnsManagementClient
@@ -31,6 +32,7 @@ class DnsRecord:
     record_type: str
     ttl: int
     value: str
+    raw_values: list = field(default_factory=list)  # individual TXT strings for TXT records
 
 
 class DnsService:
@@ -70,11 +72,16 @@ class DnsService:
             rt = (rs.type or "").split("/")[-1]
             if rt in ("SOA", "NS"):
                 continue
+            raw_values: list = []
+            if rt == "TXT" and rs.txt_records:
+                for txt_rec in rs.txt_records:
+                    raw_values.extend(txt_rec.value or [])
             results.append(DnsRecord(
                 name=rs.name,
                 record_type=rt,
                 ttl=rs.ttl or 300,
                 value=self._extract_value(rs),
+                raw_values=raw_values,
             ))
         return results
 
@@ -114,7 +121,12 @@ class DnsService:
         elif rt == "CNAME":
             rs.cname_record = CnameRecord(cname=value)
         elif rt == "TXT":
-            rs.txt_records = [TxtRecord(value=[value])]
+            # value may be a JSON array (e.g. '["v=spf1 ...", "other"]') or a plain string.
+            try:
+                values = json.loads(value) if value.startswith("[") else [value]
+            except Exception:
+                values = [value]
+            rs.txt_records = [TxtRecord(value=values)]
         else:
             raise ValueError(f"Unsupported record type for direct implementation: {record_type}")
 
