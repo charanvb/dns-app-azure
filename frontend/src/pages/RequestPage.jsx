@@ -353,28 +353,31 @@ export default function RequestPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {recordsToSubmit.map((record, index) => (
-                        <tr key={index}>
-                          <td className="px-4 py-2">
-                            <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded">
-                              {record.type}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 font-medium">{record.label}</td>
-                          <td className="px-4 py-2 text-sm text-gray-600 max-w-md">
-                            {record.type === 'TXT' && record.value.includes('|') ? (
-                              <div className="space-y-1">
-                                {record.value.split('|').map((val, idx) => (
-                                  <div key={idx} className="text-xs bg-gray-50 p-1 rounded">{val}</div>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="break-all">{String(record.value)}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600">{record.ttl}s</td>
-                        </tr>
-                      ))}
+                      {recordsToSubmit.map((record, index) => {
+                        const recordValue = record.value || record.newValue || '';
+                        return (
+                          <tr key={index}>
+                            <td className="px-4 py-2">
+                              <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded">
+                                {record.type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 font-medium">{record.label || '@'}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600 max-w-md">
+                              {record.type === 'TXT' && recordValue.includes('|') ? (
+                                <div className="space-y-1">
+                                  {recordValue.split('|').map((val, idx) => (
+                                    <div key={idx} className="text-xs bg-gray-50 p-1 rounded">{val}</div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="break-all">{recordValue}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">{record.ttl || 300}s</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

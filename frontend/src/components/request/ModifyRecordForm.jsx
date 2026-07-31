@@ -61,14 +61,21 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     updated[index] = { ...updated[index], [field]: value };
     setStagedRecords(updated);
 
-    // Pass valid records to parent - for TXT, join txtValues with pipe
-    const valid = updated.map(r => {
-      if (r.type === 'TXT') {
-        const joinedValue = r.txtValues.filter(v => v.trim()).join('|');
-        return { ...r, newValue: joinedValue };
-      }
-      return r;
-    }).filter((r) => r.newValue && r.newValue !== r.currentValue);
+    // Pass valid records to parent - convert to standard format
+    const valid = updated
+      .filter((r) => r.newValue && r.newValue !== r.currentValue)
+      .map(r => {
+        let finalValue = r.newValue;
+        if (r.type === 'TXT') {
+          finalValue = r.txtValues.filter(v => v.trim()).join('|');
+        }
+        return {
+          type: r.type,
+          label: r.label,
+          value: finalValue,
+          ttl: r.ttl
+        };
+      });
     
     onRecordsChange(valid);
   };
@@ -97,13 +104,21 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     const updated = stagedRecords.filter((_, i) => i !== index);
     setStagedRecords(updated);
     
-    const valid = updated.map(r => {
-      if (r.type === 'TXT') {
-        const joinedValue = r.txtValues.filter(v => v.trim()).join('|');
-        return { ...r, newValue: joinedValue };
-      }
-      return r;
-    }).filter((r) => r.newValue && r.newValue !== r.currentValue);
+    // Pass valid records to parent - convert to standard format
+    const valid = updated
+      .filter((r) => r.newValue && r.newValue !== r.currentValue)
+      .map(r => {
+        let finalValue = r.newValue;
+        if (r.type === 'TXT') {
+          finalValue = r.txtValues.filter(v => v.trim()).join('|');
+        }
+        return {
+          type: r.type,
+          label: r.label,
+          value: finalValue,
+          ttl: r.ttl
+        };
+      });
     
     onRecordsChange(valid);
   };
