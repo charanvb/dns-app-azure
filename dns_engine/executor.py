@@ -23,15 +23,16 @@ def list_zone_records(
     client: DnsManagementClient,
     resource_group: str,
     zone: str,
-    top: int = 100,
+    top: int | None = 100,
     recordsetnamesuffix: str | None = None,
 ) -> list:
-    """Return up to `top` record sets from a zone, excluding SOA and NS."""
+    """Return record sets from a zone. Pass top=None to load all records."""
     kwargs: dict = {
         "resource_group_name": resource_group,
         "zone_name": zone,
-        "top": top,
     }
+    if top is not None:
+        kwargs["top"] = top
     if recordsetnamesuffix:
         kwargs["recordsetnamesuffix"] = recordsetnamesuffix
 

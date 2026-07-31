@@ -342,7 +342,9 @@
     const panel = document.getElementById(panelId);
     panel.innerHTML = '<p class="text-muted small">&#9203; Loading records…</p>';
     try {
-      const resp = await fetch(`/zones/records?zone=${encodeURIComponent(zone)}`);
+      const searchTerm = (document.getElementById(panelId + '_searchInput') || {}).value || '';
+      const url = `/zones/records?zone=${encodeURIComponent(zone)}${searchTerm.trim() ? '&search=' + encodeURIComponent(searchTerm.trim()) : ''}`;
+      const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       if (data.error) { panel.innerHTML = `<div class="alert alert-warning small py-2">${data.error}</div>`; return; }
@@ -358,13 +360,14 @@
 
       let html = `<div class="input-group input-group-sm mb-2">
         <span class="input-group-text">&#128269;</span>
-        <input type="text" id="${panelId}_searchInput" class="form-control" placeholder="Search records…"
-          oninput="filterRecords('${panelId}', this.value)" />
+        <input type="text" id="${panelId}_searchInput" class="form-control" placeholder="Search all records…"
+          oninput="debounceSearch(this,'${zone}','${panelId}','${mode}')" />
       </div>`;
 
       if (isLimited) {
         html += `<div class="alert alert-info py-1 px-2 small mb-2">
-          Showing first ${records.length} records. Use search to find specific records in large zones.
+          ${searchTerm ? `Showing first 100 matches for "<strong>${searchTerm}</strong>". Refine your search to narrow results.`
+                       : 'Showing first 100 records. Type in the search box to find records across the full zone.'}
         </div>`;
       }
 
@@ -417,6 +420,13 @@
     document.querySelectorAll(`#${panelId} tbody tr`).forEach(row => {
       row.style.display = (row.dataset.search || '').includes(lower) ? '' : 'none';
     });
+  }
+
+  // Debounce server-side search so API is called 400 ms after user stops typing.
+  let _searchTimers = {};
+  function debounceSearch(input, zone, panelId, mode) {
+    clearTimeout(_searchTimers[panelId]);
+    _searchTimers[panelId] = setTimeout(() => loadExistingRecords(zone, panelId, mode), 400);
   }
 
   function toggleAllCheckboxes(panelId, checked) {

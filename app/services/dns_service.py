@@ -66,13 +66,21 @@ class DnsService:
         search_suffix: str | None = None,
     ) -> tuple[list[DnsRecord], bool]:
         """Return up to `top` records and whether more exist (is_limited)."""
-        raw = executor.list_zone_records(
-            self._client, resource_group, zone,
-            top=top + 1,  # fetch one extra to detect truncation
-            recordsetnamesuffix=search_suffix or None,
-        )
-        is_limited = len(raw) > top
-        raw = raw[:top]
+        if search_suffix:
+            # Search: load ALL records from Azure then filter by substring on name.
+            raw = executor.list_zone_records(
+                self._client, resource_group, zone, top=None
+            )
+            term = search_suffix.lower()
+            raw = [rs for rs in raw if term in (rs.name or "").lower()]
+            is_limited = len(raw) > 100
+            raw = raw[:100]
+        else:
+            raw = executor.list_zone_records(
+                self._client, resource_group, zone, top=top + 1
+            )
+            is_limited = len(raw) > top
+            raw = raw[:top]
 
         records = []
         for rs in raw:
@@ -112,7 +120,9 @@ class DnsService:
         if rs.cname_record:
             return rs.cname_record.cname or ""
         if rs.txt_records:
-            return "; ".join(" ".join(t.value) for t in rs.txt_records)
+            # Show each TXT string as a separate item so they don't blur together.
+            all_vals = [v for t in rs.txt_records for v in (t.value or [])]
+            return " | ".join(all_vals)
         if rs.mx_records:
             return ", ".join(f"{m.preference} {m.exchange}" for m in rs.mx_records)
         if rs.srv_records:
