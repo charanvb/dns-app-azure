@@ -15,7 +15,15 @@ import CreateRecordForm from '../components/request/CreateRecordForm';
 import ModifyRecordForm from '../components/request/ModifyRecordForm';
 import DeleteRecordForm from '../components/request/DeleteRecordForm';
 
-const BLACKLISTED_DOMAINS = ['micetro.example.com'];
+const BLACKLISTED_DOMAINS = [
+  'micetro.example.com',
+  // Add more restricted domains here as needed
+];
+
+const RESTRICTED_DOMAINS = [
+  // Domains that require Cloud Ops approval
+  // Example: 'critical.example.com',
+];
 
 export default function RequestPage() {
   const navigate = useNavigate();
@@ -71,7 +79,8 @@ export default function RequestPage() {
   const { data: existingRecords, isLoading: recordsLoading } = useQuery({
     queryKey: ['zone-records', selectedZone],
     queryFn: () => api.getZoneRecords(selectedZone),
-    enabled: !!selectedZone && (selectedAction === 'modify' || selectedAction === 'delete'),
+    enabled: !!selectedZone && (selectedAction === 'modify' || selectedAction === 'delete' || selectedAction === 'create'),
+    staleTime: 300000, // 5 minutes
   });
 
   const submitMutation = useMutation({
@@ -94,6 +103,10 @@ export default function RequestPage() {
   });
 
   const isZoneBlacklisted = BLACKLISTED_DOMAINS.some(
+    (domain) => selectedZone.toLowerCase() === domain || selectedZone.toLowerCase().endsWith(`.${domain}`)
+  );
+
+  const isZoneRestricted = RESTRICTED_DOMAINS.some(
     (domain) => selectedZone.toLowerCase() === domain || selectedZone.toLowerCase().endsWith(`.${domain}`)
   );
 
@@ -206,6 +219,13 @@ export default function RequestPage() {
                 </Alert>
               )}
 
+              {selectedZone && isZoneRestricted && (
+                <Alert variant="warning" title="Approval Required">
+                  Changes to <strong>{selectedZone}</strong> require Cloud Ops approval. 
+                  Please contact <a href="mailto:UL_cloudops@hcltech.com" className="underline">UL_cloudops@hcltech.com</a> before proceeding.
+                </Alert>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Action <span className="text-red-500">*</span>
@@ -243,6 +263,7 @@ export default function RequestPage() {
               {selectedAction === 'create' && (
                 <CreateRecordForm
                   zone={selectedZone}
+                  existingRecords={existingRecords?.records || []}
                   onRecordsChange={setRecordsToSubmit}
                 />
               )}

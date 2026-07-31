@@ -38,8 +38,27 @@ const validateIPv6 = (value) => /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/.tes
 
 const validateFQDN = (value) => /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(value);
 
-export default function CreateRecordForm({ zone, onRecordsChange }) {
+export default function CreateRecordForm({ zone, existingRecords = [], onRecordsChange }) {
   const [records, setRecords] = useState([]);
+
+  // Helper to check if SPF record exists
+  const hasSPF = (label) => {
+    return existingRecords.some(r => 
+      r.name === label && 
+      r.type === 'TXT' && 
+      (r.value || '').toLowerCase().includes('v=spf1')
+    );
+  };
+
+  // Helper to check if record with same label and type exists
+  const recordExists = (label, type) => {
+    return existingRecords.some(r => r.name === label && r.type === type);
+  };
+
+  // Helper to check for duplicate labels in current records
+  const hasDuplicateInRecords = (currentId, label, type) => {
+    return records.some(r => r.id !== currentId && r.label === label && r.type === type);
+  };
 
   const addRecord = () => {
     if (records.length >= 5) {
@@ -150,12 +169,33 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
       }
 
       if (field === 'label' && value) {
-        if (value.includes('*')) {
+        // Check for duplicate in existing records
+        if (recordExists(value, r.type)) {
+          updatedRecord.error = `A ${r.type} record with label "${value}" already exists in this zone`;
+        }
+        // Check for duplicate in current form
+        else if (hasDuplicateInRecords(id, value, r.type)) {
+          updatedRecord.error = `You already have a ${r.type} record with label "${value}" in this request`;
+        }
+        // Check for existing SPF record
+        else if (r.type === 'TXT' && r.txtValues.some(v => v.toLowerCase().includes('v=spf1')) && hasSPF(value)) {
+          updatedRecord.error = `An SPF record already exists for "${value}". Please modify the existing one instead`;
+        }
+        else if (value.includes('*')) {
           updatedRecord.error = 'Wildcards (*) are not permitted';
         } else if (value.length > 253) {
           updatedRecord.error = 'Label exceeds maximum length (253)';
         } else if (value !== '@' && !/^[a-zA-Z0-9][a-zA-Z0-9.\-]*$/.test(value)) {
           updatedRecord.error = 'Only a-z, 0-9, hyphens and dots allowed';
+        }
+      }
+
+      // Check SPF when TXT value changes
+      if (field === 'txtValues' || (r.type === 'TXT' && field === 'value')) {
+        const txtValues = field === 'txtValues' ? value : r.txtValues;
+        const hasSPFValue = txtValues.some(v => (v || '').toLowerCase().includes('v=spf1'));
+        if (hasSPFValue && r.label && hasSPF(r.label)) {
+          updatedRecord.error = `An SPF record already exists for "${r.label}". Please modify the existing one instead`;
         }
       }
 

@@ -9,9 +9,10 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, onR
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecords, setSelectedRecords] = useState([]);
 
-  const filteredRecords = existingRecords.filter((record) =>
-    `${record.name} ${record.type} ${record.value}`.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredRecords = existingRecords.filter((record) => {
+    const fqdn = record.name === '@' ? zone : `${record.name}.${zone}`;
+    return `${fqdn} ${record.type} ${record.value}`.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   const handleCheckboxChange = (record) => {
     const isSelected = selectedRecords.find(
@@ -84,6 +85,7 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, onR
                   const isSelected = selectedRecords.find(
                     (r) => r.name === record.name && r.type === record.type
                   );
+                  const fqdn = record.name === '@' ? zone : `${record.name}.${zone}`;
                   return (
                     <tr
                       key={index}
@@ -102,7 +104,10 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, onR
                           {record.type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium">{record.name}</td>
+                      <td className="px-4 py-3 font-medium text-sm">
+                        <div className="text-gray-900">{fqdn}</div>
+                        <div className="text-xs text-gray-500">({record.name})</div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
                         {record.value}
                       </td>
@@ -121,11 +126,14 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, onR
                   {selectedRecords.length} record(s) will be permanently deleted:
                 </p>
                 <ul className="list-disc list-inside space-y-1">
-                  {selectedRecords.map((record, index) => (
-                    <li key={index} className="text-sm">
-                      <strong>{record.type}</strong> - {record.name} → {record.value}
-                    </li>
-                  ))}
+                  {selectedRecords.map((record, index) => {
+                    const fqdn = record.name === '@' ? zone : `${record.name}.${zone}`;
+                    return (
+                      <li key={index} className="text-sm">
+                        <strong>{record.type}</strong> - {fqdn} → {record.value}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </Alert>

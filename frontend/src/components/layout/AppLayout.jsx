@@ -21,8 +21,8 @@ export default function AppLayout() {
       />
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
+          <div className="max-w-6xl mx-auto">
             <Outlet />
           </div>
         </main>

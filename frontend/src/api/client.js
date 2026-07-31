@@ -41,7 +41,7 @@ export const api = {
     return handleResponse(response);
   },
 
-  async getZoneRecords(zone, search = '', limit = 100) {
+  async getZoneRecords(zone, search = '', limit = 10000) {
     const params = new URLSearchParams({ zone, limit: limit.toString() });
     if (search) params.append('search', search);
     const response = await fetch(`${API_BASE_URL}/api/zones/records?${params}`);

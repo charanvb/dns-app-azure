@@ -37,14 +37,14 @@ async def list_zones(request: Request) -> HTMLResponse:
 
 
 @router.get("/records", summary="List records in a zone (JSON)")
-async def list_zone_records(zone: str, search: str = "") -> JSONResponse:
-    """Return up to 100 records for the request form. Includes is_limited flag."""
+async def list_zone_records(zone: str, search: str = "", limit: int = 10000) -> JSONResponse:
+    """Return up to 10,000 records for the request form. Includes is_limited flag."""
     try:
         svc = DnsService(settings.dns_subscription_id)
         search_suffix = search.strip() or None
         records, is_limited = svc.list_records_by_zone(
             settings.dns_resource_group, zone,
-            top=100,
+            top=min(limit, 10000),  # Cap at 10k to prevent overload
             search_suffix=search_suffix,
         )
         return JSONResponse({

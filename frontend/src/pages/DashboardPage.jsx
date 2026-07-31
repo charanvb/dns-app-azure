@@ -41,9 +41,9 @@ export default function DashboardPage() {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">Azure Connected</h3>
+              <h3 className="font-semibold text-gray-900 mb-1">Phase 2 Active</h3>
               <p className="text-sm text-gray-600">
-                Successfully connected to Azure DNS services via Managed Identity.
+                Strong foundation for A, AAAA, CNAME, TXT records with enhanced error handling.
               </p>
             </div>
           </div>
