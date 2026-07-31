@@ -318,15 +318,22 @@
       return;
     }
     const records = window._createZoneRecords || [];
-    const conflict = records.find(
-      r => r.name.toLowerCase() === label.toLowerCase() && r.type.toLowerCase() === type.toLowerCase()
-    );
-    if (conflict) {
-      errEl.textContent = `⚠ A ${type} record "${label}" already exists (${conflict.value}). Use Modify to update it.`;
-      errEl.style.display = 'block';
+    let msg = '';
+    if (type.toUpperCase() === 'CNAME') {
+      // CNAME cannot coexist with ANY other record at the same label.
+      const conflict = records.find(r => r.name.toLowerCase() === label.toLowerCase());
+      if (conflict) msg = `\u26a0 A ${conflict.type} record already exists for "${label}". CNAME cannot share a label with other records.`;
     } else {
-      errEl.textContent = ''; errEl.style.display = 'none';
+      // No record can share a label with a CNAME.
+      const cname = records.find(r => r.name.toLowerCase() === label.toLowerCase() && r.type.toUpperCase() === 'CNAME');
+      if (cname) msg = `\u26a0 A CNAME already exists for "${label}". Cannot add ${type} alongside a CNAME.`;
+      else {
+        const exact = records.find(r => r.name.toLowerCase() === label.toLowerCase() && r.type.toLowerCase() === type.toLowerCase());
+        if (exact) msg = `\u26a0 A ${type} record for "${label}" already exists (${exact.value}). Use Modify to update it.`;
+      }
     }
+    errEl.textContent = msg;
+    errEl.style.display = msg ? 'block' : 'none';
   }
 
   // ── AJAX: load existing records into the modify/delete panel ──────────
@@ -846,16 +853,27 @@
         }
         seen.add(key);
       }
-      // Block labels that already exist in the zone.
+      // Block labels that already exist in the zone (including CNAME coexistence rule).
       const existing = window._createZoneRecords || [];
       for (let i = 0; i < allRecords.length; i++) {
         const rec = allRecords[i];
-        const conflict = existing.find(
-          r => r.name.toLowerCase() === rec.label.toLowerCase() && r.type.toLowerCase() === rec.type.toLowerCase()
-        );
-        if (conflict) {
-          alert(`Record ${i+1}: a ${rec.type} record for "${rec.label}" already exists in this zone (${conflict.value}).\nUse Modify to update it.`);
-          return;
+        if (rec.type.toUpperCase() === 'CNAME') {
+          const conflict = existing.find(r => r.name.toLowerCase() === rec.label.toLowerCase());
+          if (conflict) {
+            alert(`Record ${i+1}: A ${conflict.type} record already exists for "${rec.label}". CNAME cannot share a label with other records.`);
+            return;
+          }
+        } else {
+          const cname = existing.find(r => r.name.toLowerCase() === rec.label.toLowerCase() && r.type.toUpperCase() === 'CNAME');
+          if (cname) {
+            alert(`Record ${i+1}: A CNAME already exists for "${rec.label}". Cannot add ${rec.type} alongside a CNAME.`);
+            return;
+          }
+          const conflict = existing.find(r => r.name.toLowerCase() === rec.label.toLowerCase() && r.type.toLowerCase() === rec.type.toLowerCase());
+          if (conflict) {
+            alert(`Record ${i+1}: a ${rec.type} record for "${rec.label}" already exists in this zone (${conflict.value}).\nUse Modify to update it.`);
+            return;
+          }
         }
       }
       // First record goes to single-record fields; all records go into records_json.
