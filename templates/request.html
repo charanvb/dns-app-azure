@@ -215,29 +215,14 @@
       <!-- ══ DELETE ══════════════════════════════════════════════════════ -->
       <div id="section_delete" style="display:none">
         <div class="section-title">Existing Records</div>
+        <p class="hint mb-2">Select records to delete using the checkboxes or the Delete button. Then fill in the justification and click Submit Request.</p>
         <div id="existingRecordsDelete">
           <p class="text-muted small">Select a zone to load existing records.</p>
         </div>
-
-        <div class="section-title">Record to Delete</div>
-        <p class="hint mb-3">Click <strong>Delete</strong> on a record above to pre-fill, or enter manually.</p>
-        <div class="row g-2 align-items-end">
-          <div class="col-md-2">
-            <label class="form-label small fw-semibold">Type <span class="req">*</span></label>
-            <select id="del_type" class="form-select form-select-sm">
-              <option value="">-- --</option>
-              <option>A</option><option>AAAA</option><option>CNAME</option><option>TXT</option><option>SRV</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label small fw-semibold">Label <span class="req">*</span></label>
-            <input type="text" id="del_label" class="form-control form-control-sm" placeholder="e.g. www" />
-          </div>
-          <div class="col-md-7">
-            <label class="form-label small fw-semibold">Current Value <span class="text-muted">(for verification)</span></label>
-            <input type="text" id="del_value" class="form-control form-control-sm" readonly placeholder="auto-filled from existing records" />
-          </div>
-        </div>
+        <!-- Hidden fields populated by deleteRecordDirect / deleteSelectedRecords -->
+        <input type="hidden" id="del_type" />
+        <input type="hidden" id="del_label" />
+        <input type="hidden" id="del_value" />
       </div>
 
       <!-- ── Simple single-record fields (used for server validation) ─── -->
@@ -403,16 +388,16 @@
     if (cnt) cnt.textContent = count;
   }
 
-  // Pre-fill the delete form row — user reviews then clicks Submit Request.
+  // Pre-fill hidden delete fields from a single record row click.
   function deleteRecordDirect(name, type, value) {
-    document.getElementById('h_records_json').value = ''; // clear any multi-select state
-    document.getElementById('del_type').value       = type;
-    document.getElementById('del_label').value      = name;
-    document.getElementById('del_value').value      = value;
-    document.getElementById('h_label').value        = name;
-    document.getElementById('h_record_type').value  = type;
-    document.getElementById('h_value').value        = value;
-    document.getElementById('h_ttl').value          = '300';
+    document.getElementById('h_records_json').value = '';
+    document.getElementById('del_type').value        = type;
+    document.getElementById('del_label').value       = name;
+    document.getElementById('del_value').value       = value;
+    document.getElementById('h_label').value         = name;
+    document.getElementById('h_record_type').value   = type;
+    document.getElementById('h_value').value         = value;
+    document.getElementById('h_ttl').value           = '300';
     document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
   }
 
