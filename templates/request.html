@@ -470,41 +470,99 @@
     stageRecordForModify(name, type, value, ttl, []);
   }
 
-  // Add a record to the modify staging table; prevents duplicates.
-  function stageRecordForModify(name, type, value, ttl) {
+  // ── TXT multi-value helpers ───────────────────────────────────────────
+  function addTxtVal(pfx) {
+    const c = document.getElementById(pfx + '_vals');
+    const d = document.createElement('div');
+    d.className = 'input-group input-group-sm mb-1';
+    d.innerHTML = '<input type="text" data-txt-val class="form-control" oninput="checkTxtSpf(\'' + pfx + '\')" />' +
+      '<button type="button" class="btn btn-outline-secondary" onclick="removeTxtVal(this,\'' + pfx + '\')">&#x2715;</button>';
+    c.appendChild(d);
+  }
+  function removeTxtVal(btn, pfx) {
+    const c = document.getElementById(pfx + '_vals');
+    if (c && c.children.length > 1) { btn.closest('.input-group').remove(); checkTxtSpf(pfx); }
+  }
+  function checkTxtSpf(pfx) {
+    const vals = [...document.querySelectorAll('#' + pfx + '_vals [data-txt-val]')].map(i => i.value);
+    const spfInCard = vals.filter(v => v.toLowerCase().startsWith('v=spf1')).length;
+    const w = document.getElementById(pfx + '_spfw');
+    if (!w) return;
+    // Also check if zone already has an SPF record on ANY label.
+    const existingSpf = (window._createZoneRecords || []).find(
+      r => r.type === 'TXT' && (r.value || '').toLowerCase().startsWith('v=spf1'));
+    if (spfInCard > 1) {
+      w.textContent = '\u26a0 Only one SPF value is allowed per record set.';
+      w.style.display = 'block';
+    } else if (spfInCard === 1 && existingSpf) {
+      w.textContent = '\u26a0 Zone already has SPF on "' + existingSpf.name + '" (' + existingSpf.value + '). Adding another may cause mail delivery issues.';
+      w.style.display = 'block';
+    } else if (spfInCard === 1) {
+      w.textContent = '\u26a0 SPF value detected. Verify no existing SPF exists for this label.';
+      w.style.display = 'block';
+    } else { w.textContent = ''; w.style.display = 'none'; }
+  }
+
+  // ── stageRecordForModify — handles TXT multi-value ───────────────────
+  function stageRecordForModify(name, type, value, ttl, rawValues) {
+    rawValues = rawValues || [];
     const body = document.getElementById('modifyStageBody');
     if ([...body.querySelectorAll('tr')].some(
         tr => tr.dataset.label === name.toLowerCase() && tr.dataset.type === type.toLowerCase())) {
-      alert(`"${name}" (${type}) is already staged for modification.`);
-      return;
+      alert('"' + name + '" (' + type + ') is already staged.'); return;
     }
     const row = document.createElement('tr');
     row.dataset.label = name.toLowerCase();
     row.dataset.type  = type.toLowerCase();
-    const esc = s => s.replace(/"/g,'&quot;');
-    row.innerHTML = `
-      <td><span class="badge bg-secondary">${type}</span><input type="hidden" class="mod-type" value="${esc(type)}" /></td>
-      <td class="fw-semibold">${name}<input type="hidden" class="mod-label" value="${esc(name)}" /></td>
-      <td class="text-break small text-muted">${value}</td>
-      <td><input type="text" class="form-control form-control-sm mod-newval" placeholder="new value" /></td>
-      <td><input type="text" class="form-control form-control-sm mod-ttl" value="${ttl}" style="width:70px" /></td>
-      <td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
-          onclick="this.closest('tr').remove(); if(!document.getElementById('modifyStageBody').children.length) document.getElementById('modifyStagingArea').classList.add('d-none')">✕</button></td>`;
+    const escH = s => (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    let newValueCell;
+    if (type.toUpperCase() === 'TXT') {
+      const existingVals = rawValues.length ? rawValues : (value ? [value] : ['']);
+      const inputs = existingVals.map(v =>
+        '<div class="input-group input-group-sm mb-1">' +
+          '<input type="text" data-txt-val class="form-control" value="' + escH(v) + '" />' +
+          '<button type="button" class="btn btn-outline-danger" onclick="removeModTxtVal(this)">&#x2715;</button>' +
+        '</div>').join('');
+      newValueCell = '<td><div class="mod-txt-vals">' + inputs + '</div>' +
+        '<button type="button" class="btn btn-outline-secondary btn-sm mt-1" onclick="addModTxtVal(this)">+ Value</button></td>';
+    } else {
+      newValueCell = '<td><input type="text" class="form-control form-control-sm mod-newval" placeholder="new value" /></td>';
+    }
+    row.innerHTML =
+      '<td><span class="badge bg-secondary">' + type + '</span><input type="hidden" class="mod-type" value="' + escH(type) + '" /></td>' +
+      '<td class="fw-semibold">' + name + '<input type="hidden" class="mod-label" value="' + escH(name) + '" /></td>' +
+      '<td class="text-break small text-muted" style="max-width:160px">' + escH(value) + '</td>' +
+      newValueCell +
+      '<td><input type="text" class="form-control form-control-sm mod-ttl" value="' + ttl + '" oninput="this.value=this.value.replace(/\\D/g,\'\')" style="width:70px" /></td>' +
+      '<td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"' +
+        ' onclick="this.closest(\'tr\').remove();if(!document.getElementById(\'modifyStageBody\').children.length)document.getElementById(\'modifyStagingArea\').classList.add(\'d-none\')">&#x2715;</button></td>';
     body.appendChild(row);
     document.getElementById('modifyStagingArea').classList.remove('d-none');
     document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
+  }
+  function addModTxtVal(btn) {
+    const c = btn.previousElementSibling;
+    const d = document.createElement('div');
+    d.className = 'input-group input-group-sm mb-1';
+    d.innerHTML = '<input type="text" data-txt-val class="form-control" />' +
+      '<button type="button" class="btn btn-outline-danger" onclick="removeModTxtVal(this)">&#x2715;</button>';
+    c.appendChild(d);
+  }
+  function removeModTxtVal(btn) {
+    const c = btn.closest('.mod-txt-vals');
+    if (c && c.children.length > 1) btn.closest('.input-group').remove();
   }
 
   function stageSelectedModifies(panelId) {
     const store = window['_records_' + panelId];
     if (!store) return;
     const { records } = store;
-    const idxs = [...document.querySelectorAll(`.${panelId}_chk:checked`)].map(c => parseInt(c.dataset.idx));
-    idxs.map(i => records[i]).filter(Boolean).forEach(r => stageRecordForModify(r.name, r.type, r.value, r.ttl));
+    const idxs = [...document.querySelectorAll('.' + panelId + '_chk:checked')].map(c => parseInt(c.dataset.idx));
+    idxs.map(i => records[i]).filter(Boolean)
+        .forEach(r => stageRecordForModify(r.name, r.type, r.value, r.ttl, r.raw_values || []));
   }
-
-  function useRecord(name, type, value, ttl) {
-    stageRecordForModify(name, type, value, ttl);
+  function useRecord(name, type, value, ttl, rawValues) {
+    stageRecordForModify(name, type, value, ttl, rawValues || []);
   }
 
   function stageSelectedModifies(panelId) {
@@ -761,6 +819,15 @@
           if (!txtVals.length) { alert(`Record ${i+1}: At least one TXT value is required.`); return; }
           if (txtVals.filter(v => v.toLowerCase().startsWith('v=spf1')).length > 1) {
             alert(`Record ${i+1}: Only one SPF value is allowed per record.`); return;
+          }
+          // Block if zone already has an SPF record on any label.
+          if (txtVals.some(v => v.toLowerCase().startsWith('v=spf1'))) {
+            const existingSpf = (window._createZoneRecords || []).find(
+              r => r.type === 'TXT' && (r.value || '').toLowerCase().startsWith('v=spf1'));
+            if (existingSpf) {
+              alert(`Record ${i+1}: Zone already has SPF on "${existingSpf.name}". Only one SPF record is allowed per zone.`);
+              return;
+            }
           }
           val = JSON.stringify(txtVals);
         } else {
