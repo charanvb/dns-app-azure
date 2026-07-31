@@ -305,7 +305,8 @@
       const resp = await fetch(`/zones/records?zone=${encodeURIComponent(zone)}`);
       if (resp.ok) {
         const data = await resp.json();
-        window._createZoneRecords = Array.isArray(data) ? data : [];
+        const records = Array.isArray(data) ? data : (data.records || []);
+        window._createZoneRecords = records;
       }
     } catch(e) { window._createZoneRecords = []; }
   }
@@ -343,20 +344,31 @@
     try {
       const resp = await fetch(`/zones/records?zone=${encodeURIComponent(zone)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const records = await resp.json();
-      if (records.error) { panel.innerHTML = `<div class="alert alert-warning small py-2">${records.error}</div>`; return; }
+      const data = await resp.json();
+      if (data.error) { panel.innerHTML = `<div class="alert alert-warning small py-2">${data.error}</div>`; return; }
+
+      // API returns {records, total_loaded, is_limited} — support both formats.
+      const records = Array.isArray(data) ? data : (data.records || []);
+      const isLimited = data.is_limited || false;
+
       if (!records.length) { panel.innerHTML = '<p class="text-muted small">No records found in this zone.</p>'; return; }
 
       const isModify = mode === 'mod';
-      // Store for multi-delete lookup
       window['_records_' + panelId] = { records, zone };
 
       let html = `<div class="input-group input-group-sm mb-2">
         <span class="input-group-text">&#128269;</span>
-        <input type="text" class="form-control" placeholder="Search records…"
+        <input type="text" id="${panelId}_searchInput" class="form-control" placeholder="Search records…"
           oninput="filterRecords('${panelId}', this.value)" />
-      </div>
-      <div class="table-responsive">
+      </div>`;
+
+      if (isLimited) {
+        html += `<div class="alert alert-info py-1 px-2 small mb-2">
+          Showing first ${records.length} records. Use search to find specific records in large zones.
+        </div>`;
+      }
+
+      html += `<div class="table-responsive">
       <table class="table table-sm table-hover table-bordered align-middle mb-1">
         <thead class="table-light"><tr>
           <th></th>
@@ -425,7 +437,25 @@
     if (cnt) cnt.textContent = count;
   }
 
-  // Show inline review panel for staged deletions — no execution yet.
+  // Per-type validation on Modify staging new-value inputs.
+  function validateModNewVal(input, type) {
+    const err = input.nextElementSibling;
+    if (!err) return;
+    let msg = '';
+    const v = input.value;
+    if (type.toUpperCase() === 'A') {
+      const ok = /^(\d{1,3}\.){3}\d{1,3}$/.test(v) && v.split('.').every(n => +n >= 0 && +n <= 255);
+      if (v && !ok) msg = 'A records require a valid IPv4 address (e.g. 203.0.113.10).';
+    } else if (type.toUpperCase() === 'AAAA') {
+      if (v && !(/^[0-9a-fA-F:]+$/.test(v) && v.includes(':'))) msg = 'AAAA records require a valid IPv6 address.';
+    } else if (type.toUpperCase() === 'CNAME') {
+      if (v && !/^[a-zA-Z0-9][a-zA-Z0-9.\-]*\.[a-zA-Z]{2,}$/.test(v)) msg = 'CNAME must be a fully qualified hostname (e.g. target.example.com).';
+    }
+    err.textContent = msg;
+    err.style.display = msg ? 'block' : 'none';
+  }
+
+  // Stage selected for deletion; TXT records show per-value checkboxes.
   function stageSelectedDeletes(panelId) {
     const store = window['_records_' + panelId];
     if (!store) return;
@@ -434,21 +464,50 @@
     const selected = idxs.map(i => records[i]).filter(Boolean);
     if (!selected.length) return;
 
-    const payload = selected.map(r => ({ type: r.type, label: r.name, value: r.value, ttl: 300 }));
-    document.getElementById('h_records_json').value = JSON.stringify(payload);
+    window._deleteSelected = selected;
+    // Build initial payload (all values checked = delete everything).
+    const buildPayload = () => selected.map((r, idx) => {
+      if (r.type === 'TXT' && (r.raw_values || []).length > 1) {
+        const toDelete = [...document.querySelectorAll(`.del-txt-chk[data-ridx="${idx}"]:checked`)].map(c => c.value);
+        const remaining = r.raw_values.filter(v => !toDelete.includes(v));
+        return { type: r.type, label: r.name, value: r.value, ttl: 300, remaining_values: remaining };
+      }
+      return { type: r.type, label: r.name, value: r.value, ttl: 300 };
+    });
 
     // Render the inline review table.
     let tbl = `<div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-1">
-      <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Value</th></tr></thead><tbody>`;
-    selected.forEach(r => {
+      <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Values</th></tr></thead><tbody>`;
+    selected.forEach((r, idx) => {
+      const rawVals = r.raw_values || [];
+      let valCell;
+      if (r.type === 'TXT' && rawVals.length > 1) {
+        const chks = rawVals.map((v, vi) =>
+          `<div class="form-check form-check-sm">
+            <input type="checkbox" class="form-check-input del-txt-chk" data-ridx="${idx}" checked
+              id="dtv${idx}_${vi}" value="${v.replace(/"/g,'&quot;')}"
+              onchange="updateDeletePayload()" />
+            <label class="form-check-label small" for="dtv${idx}_${vi}">${v}</label>
+          </div>`).join('');
+        valCell = `<td>${chks}<small class="text-muted">&#x2713; = will be deleted &nbsp; uncheck = keep</small></td>`;
+      } else {
+        valCell = `<td class="text-break small">${r.value}</td>`;
+      }
       tbl += `<tr><td><span class="badge bg-danger">${r.type}</span></td>
-        <td class="fw-semibold">${r.name}</td>
-        <td class="text-break small">${r.value}</td></tr>`;
+        <td class="fw-semibold">${r.name}</td>${valCell}</tr>`;
     });
     tbl += '</tbody></table></div>';
     document.getElementById('deleteReviewTable').innerHTML = tbl;
     document.getElementById('deleteReviewPanel').classList.remove('d-none');
+    document.getElementById('h_records_json').value = JSON.stringify(buildPayload());
+    window._buildDeletePayload = buildPayload;
     document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
+  }
+
+  function updateDeletePayload() {
+    if (window._buildDeletePayload) {
+      document.getElementById('h_records_json').value = JSON.stringify(window._buildDeletePayload());
+    }
   }
 
   // deleteRecordDirect kept for single-row click support.
@@ -533,7 +592,12 @@
       newValueCell = '<td><div class="mod-txt-vals">' + inputs + '</div>' +
         '<button type="button" class="btn btn-outline-secondary btn-sm mt-1" onclick="addModTxtVal(this)">+ Value</button></td>';
     } else {
-      newValueCell = '<td><input type="text" class="form-control form-control-sm mod-newval" placeholder="new value" /></td>';
+      const ph = {'A':'IPv4 e.g. 203.0.113.10','AAAA':'IPv6 e.g. 2001:db8::1','CNAME':'e.g. target.example.com'}[type.toUpperCase()] || 'new value';
+      newValueCell = `<td>
+        <input type="text" class="form-control form-control-sm mod-newval" placeholder="${ph}"
+          oninput="validateModNewVal(this,'${type}')" />
+        <div class="small text-danger mod-val-err" style="display:none"></div>
+      </td>`;
     }
     row.innerHTML =
       '<td><span class="badge bg-secondary">' + type + '</span><input type="hidden" class="mod-type" value="' + escH(type) + '" /></td>' +

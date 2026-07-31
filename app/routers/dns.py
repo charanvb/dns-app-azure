@@ -37,15 +37,25 @@ async def list_zones(request: Request) -> HTMLResponse:
 
 
 @router.get("/records", summary="List records in a zone (JSON)")
-async def list_zone_records(zone: str) -> JSONResponse:
-    """Return all modifiable records in the given zone as JSON for the request form."""
+async def list_zone_records(zone: str, search: str = "") -> JSONResponse:
+    """Return up to 100 records for the request form. Includes is_limited flag."""
     try:
         svc = DnsService(settings.dns_subscription_id)
-        records = svc.list_records_by_zone(settings.dns_resource_group, zone)
-        return JSONResponse([
-            {"name": r.name, "type": r.record_type, "ttl": r.ttl, "value": r.value, "raw_values": r.raw_values}
-            for r in records
-        ])
+        search_suffix = search.strip() or None
+        records, is_limited = svc.list_records_by_zone(
+            settings.dns_resource_group, zone,
+            top=100,
+            search_suffix=search_suffix,
+        )
+        return JSONResponse({
+            "records": [
+                {"name": r.name, "type": r.record_type, "ttl": r.ttl,
+                 "value": r.value, "raw_values": r.raw_values}
+                for r in records
+            ],
+            "total_loaded": len(records),
+            "is_limited": is_limited,
+        })
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
 

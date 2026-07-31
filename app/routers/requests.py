@@ -148,12 +148,19 @@ async def submit_request(request: Request) -> HTMLResponse:
         except (ValueError, TypeError):
             rec_ttl = 300
 
+        # Server-side value validation for non-JSON values.
         rec_error: str | None = None
         try:
             if action == "delete":
-                dns_svc.delete_record(
-                    settings.dns_resource_group, zone, rec_label, rec_type
-                )
+                remaining = [str(v) for v in rec.get("remaining_values", [])]
+                if rec_type == "TXT" and remaining:
+                    # Partial TXT delete: update record set keeping only the remaining values.
+                    dns_svc.create_or_update_record(
+                        settings.dns_resource_group, zone, rec_label, "TXT",
+                        __import__("json").dumps(remaining), rec_ttl,
+                    )
+                else:
+                    dns_svc.delete_record(settings.dns_resource_group, zone, rec_label, rec_type)
             else:
                 dns_svc.create_or_update_record(
                     settings.dns_resource_group, zone, rec_label, rec_type, rec_value, rec_ttl

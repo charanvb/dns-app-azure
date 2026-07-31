@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/*.whl \
 
 COPY app/ ./app/
 COPY templates/ ./templates/
+COPY dns_engine/ ./dns_engine/
 
 USER appuser
 
