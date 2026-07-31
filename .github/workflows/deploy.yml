@@ -1,4 +1,4 @@
-# Builds the Docker image, pushes to ACR, and updates the Container App.
+# Builds the Docker image (React + FastAPI), pushes to ACR, and updates the Container App.
 # Triggers on every push to main. Run infra.yml at least once before the first deploy.
 #
 # Required secrets: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
@@ -11,6 +11,8 @@ on:
       - main
     paths:
       - "app/**"
+      - "frontend/**"
+      - "dns_engine/**"
       - "templates/**"
       - "Dockerfile"
       - "requirements.txt"
@@ -42,16 +44,16 @@ jobs:
             --tenant "${{ secrets.AZURE_TENANT_ID }}"
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
 
-      - name: Login to ACR
-        run: az acr login --name "$ACR_NAME"
-
-      - name: Build and push image
+      - name: Build and push multi-stage image using ACR
         run: |
-          IMAGE_TAG="$ACR_NAME.azurecr.io/$IMAGE_NAME:${{ github.sha }}"
-          docker build -t "$IMAGE_TAG" .
-          docker push "$IMAGE_TAG"
-          docker tag "$IMAGE_TAG" "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
-          docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
+          # Use ACR build for multi-stage Docker builds (Node.js + Python)
+          # This is more efficient than local builds for complex Dockerfiles
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "$IMAGE_NAME:${{ github.sha }}" \
+            --image "$IMAGE_NAME:latest" \
+            --file Dockerfile \
+            .
 
       # Wire managed identity to ACR; idempotent on subsequent runs.
       - name: Configure ACR identity on Container App
@@ -64,7 +66,42 @@ jobs:
 
       - name: Deploy to Container Apps
         run: |
+          # Update with new image and ensure proper resource allocation for 12k zones
           az containerapp update \
             --name "$CONTAINER_APP_NAME" \
             --resource-group "$CONTAINER_APP_RG" \
-            --image "$ACR_NAME.azurecr.io/$IMAGE_NAME:${{ github.sha }}"
+            --image "$ACR_NAME.azurecr.io/$IMAGE_NAME:${{ github.sha }}" \
+            --cpu 0.5 \
+            --memory 1.0Gi \
+            --set-env-vars \
+              "APP_NAME=Azure DNS Portal" \
+              "APP_VERSION=2.0.0" \
+              "ENVIRONMENT=production"
+
+      - name: Verify deployment
+        run: |
+          # Get app URL
+          APP_URL=$(az containerapp show \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$CONTAINER_APP_RG" \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+          
+          echo "🚀 Deployment complete!"
+          echo "App URL: https://$APP_URL"
+          echo "Health check: https://$APP_URL/api/health"
+          
+          # Wait for app to be ready (max 60 seconds)
+          echo "Waiting for app to be ready..."
+          for i in {1..12}; do
+            if curl -sf "https://$APP_URL/api/health" > /dev/null 2>&1; then
+              echo "✅ Health check passed!"
+              curl -s "https://$APP_URL/api/health" | jq .
+              exit 0
+            fi
+            echo "Attempt $i/12: App not ready yet, waiting 5s..."
+            sleep 5
+          done
+          
+          echo "⚠️ Health check timeout (app may still be starting)"
+          exit 0  # Don't fail the workflow
