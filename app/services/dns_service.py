@@ -94,6 +94,8 @@ class DnsService:
         if rs.srv_records:
             return ", ".join(f"{s.priority} {s.weight} {s.port} {s.target}" for s in rs.srv_records)
         return ""
+
+    def create_or_update_record(
         self,
         resource_group: str,
         zone: str,
