@@ -15,7 +15,7 @@ import CreateRecordForm from '../components/request/CreateRecordForm';
 import ModifyRecordForm from '../components/request/ModifyRecordForm';
 import DeleteRecordForm from '../components/request/DeleteRecordForm';
 
-const BLACKLISTED_DOMAINS = ['micetro.example.com']; // Update with actual blacklist
+const BLACKLISTED_DOMAINS = ['micetro.example.com'];
 
 export default function RequestPage() {
   const navigate = useNavigate();
@@ -24,7 +24,6 @@ export default function RequestPage() {
   const [selectedAction, setSelectedAction] = useState('');
   const [recordsToSubmit, setRecordsToSubmit] = useState([]);
   
-  // Zone search state
   const [zoneSearchQuery, setZoneSearchQuery] = useState('');
   const [zoneSearchResults, setZoneSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -32,7 +31,6 @@ export default function RequestPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm();
 
-  // Debounced zone search
   const searchZones = useCallback(async (query) => {
     if (query.length < 2) {
       setZoneSearchResults([]);
@@ -70,21 +68,12 @@ export default function RequestPage() {
     setShowZoneDropdown(false);
   };
 
-  // Fetch existing records when zone is selected
   const { data: existingRecords, isLoading: recordsLoading } = useQuery({
     queryKey: ['zone-records', selectedZone],
     queryFn: () => api.getZoneRecords(selectedZone),
     enabled: !!selectedZone && (selectedAction === 'modify' || selectedAction === 'delete'),
   });
 
-  // Fetch existing records when zone is selected
-  const { data: existingRecords, isLoading: recordsLoading } = useQuery({
-    queryKey: ['zone-records', selectedZone],
-    queryFn: () => api.getZoneRecords(selectedZone),
-    enabled: !!selectedZone && (selectedAction === 'modify' || selectedAction === 'delete'),
-  });
-
-  // Submit mutation
   const submitMutation = useMutation({
     mutationFn: (data) => api.submitRequest(data),
     onSuccess: (data) => {
@@ -154,12 +143,10 @@ export default function RequestPage() {
 
       <Card>
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Step 1: Zone & Action Selection */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold">Select Zone and Action</h2>
 
-              {/* Searchable Zone Input */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   DNS Zone <span className="text-red-500">*</span>
@@ -172,28 +159,24 @@ export default function RequestPage() {
                     className="input pl-10"
                     placeholder="Type to search zones..."
                     value={zoneSearchQuery}
-               selectedZone && isZoneBlacklisted && (
-                <Alert variant="error" title="Zone Restricted">
-                  This zone is managed via <strong>Micetro</strong> and cannot be changed through
-                  this portal. Please raise your request there.
-                </Alert>
-              )}
+                    onChange={handleZoneSearch}
+                    onFocus={() => setShowZoneDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowZoneDropdown(false), 200)}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Action <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="input"
-                  value={selectedAction}
-                  onChange={(e) => setSelectedAction(e.target.value)}
-                >
-                  <option value="">-- Select an action --</option>
-                  <option value="create">Create DNS Record</option>
-                  <option value="modify">Modify DNS Record</option>
-                  <option value="delete">Delete DNS Record</option>
-                </select>
-              </div             className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                {showZoneDropdown && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                    {isSearching ? (
+                      <div className="px-4 py-3 text-center">
+                        <LoadingSpinner size="sm" />
+                      </div>
+                    ) : zoneSearchResults.length > 0 ? (
+                      <ul>
+                        {zoneSearchResults.map((zone) => (
+                          <li
+                            key={zone.name}
+                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
                             onClick={() => selectZone(zone.name)}
                           >
                             <div className="font-medium">{zone.name}</div>
@@ -214,25 +197,28 @@ export default function RequestPage() {
                 )}
               </div>
 
-              {isZoneBlacklisted && (
+              {selectedZone && isZoneBlacklisted && (
                 <Alert variant="error" title="Zone Restricted">
                   This zone is managed via <strong>Micetro</strong> and cannot be changed through
                   this portal. Please raise your request there.
                 </Alert>
               )}
 
-              <Select
-                label="Action"
-                required
-                value={selectedAction}
-                onChange={(e) => setSelectedAction(e.target.value)}
-                options={[
-                  { value: 'create', label: 'Create DNS Record' },
-                  { value: 'modify', label: 'Modify DNS Record' },
-                  { value: 'delete', label: 'Delete DNS Record' },
-                ]}
-                placeholder="-- Select an action --"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Action <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="input"
+                  value={selectedAction}
+                  onChange={(e) => setSelectedAction(e.target.value)}
+                >
+                  <option value="">-- Select an action --</option>
+                  <option value="create">Create DNS Record</option>
+                  <option value="modify">Modify DNS Record</option>
+                  <option value="delete">Delete DNS Record</option>
+                </select>
+              </div>
 
               <div className="flex justify-end">
                 <Button onClick={handleNext} disabled={!selectedZone || !selectedAction || isZoneBlacklisted}>
@@ -242,7 +228,6 @@ export default function RequestPage() {
             </div>
           )}
 
-          {/* Step 2: Configure Records */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -293,7 +278,6 @@ export default function RequestPage() {
             </div>
           )}
 
-          {/* Step 3: Review & Submit */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold">Review and Submit</h2>
