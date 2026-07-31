@@ -13,8 +13,12 @@
   <strong>Could not load DNS zones.</strong><br>{{ error }}
 </div>
 {% elif zones %}
+<div class="mb-3">
+  <input type="text" id="zoneSearch" class="form-control" placeholder="&#128269; Search zones…"
+    oninput="filterZones(this.value)" />
+</div>
 <div class="table-responsive">
-  <table class="table table-hover table-bordered align-middle">
+  <table id="zonesTable" class="table table-hover table-bordered align-middle">
     <thead class="table-light">
       <tr>
         <th>Zone Name</th>
@@ -38,4 +42,16 @@
 {% else %}
 <p class="text-muted">No DNS zones found in the configured resource group.</p>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function filterZones(q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll('#zonesTable tbody tr').forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(lower) ? '' : 'none';
+    });
+  }
+</script>
 {% endblock %}

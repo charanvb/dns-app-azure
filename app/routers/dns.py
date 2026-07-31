@@ -48,3 +48,27 @@ async def list_zone_records(zone: str) -> JSONResponse:
         ])
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@router.post("/api/delete-record", summary="Delete a DNS record (AJAX)")
+async def api_delete_record(request: Request) -> JSONResponse:
+    """Delete a single record; called by multi-select batch delete in the form."""
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    zone        = (data.get("zone") or "").strip()
+    label       = (data.get("label") or "").strip()
+    record_type = (data.get("record_type") or "").strip()
+
+    if not all([zone, label, record_type]):
+        return JSONResponse({"error": "zone, label, and record_type are required"}, status_code=400)
+
+    try:
+        DnsService(settings.dns_subscription_id).delete_record(
+            settings.dns_resource_group, zone, label, record_type
+        )
+        return JSONResponse({"success": True})
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)

@@ -327,25 +327,136 @@
       const records = await resp.json();
       if (records.error) { panel.innerHTML = `<div class="alert alert-warning small py-2">${records.error}</div>`; return; }
       if (!records.length) { panel.innerHTML = '<p class="text-muted small">No records found in this zone.</p>'; return; }
+
       const isModify = mode === 'mod';
-      let html = `<div class="table-responsive"><table class="table table-sm table-hover table-bordered align-middle mb-1">
-        <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th></th></tr></thead><tbody>`;
-      records.forEach(r => {
-        const name  = r.name.replace(/'/g, "\\'");
-        const val   = r.value.replace(/'/g, "\\'");
-        const btn   = isModify
-          ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" onclick="useRecord('${name}','${r.type}','${val}',${r.ttl})">Use</button>`
-          : `<button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="fillDeleteRow('${name}','${r.type}','${val}')">Select</button>`;
-        html += `<tr><td><span class="badge bg-secondary">${r.type}</span></td>
+      // Store for multi-delete lookup
+      window['_records_' + panelId] = { records, zone };
+
+      let html = `<div class="input-group input-group-sm mb-2">
+        <span class="input-group-text">&#128269;</span>
+        <input type="text" class="form-control" placeholder="Search records…"
+          oninput="filterRecords('${panelId}', this.value)" />
+      </div>
+      <div class="table-responsive">
+      <table class="table table-sm table-hover table-bordered align-middle mb-1">
+        <thead class="table-light"><tr>
+          ${!isModify ? `<th><input type="checkbox" id="${panelId}_all" onchange="toggleAllCheckboxes('${panelId}',this.checked)" title="Select all"/></th>` : ''}
+          <th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th></th>
+        </tr></thead><tbody>`;
+
+      records.forEach((r, i) => {
+        const esc = s => s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const chkCell = !isModify
+          ? `<td><input type="checkbox" class="${panelId}_chk" data-idx="${i}"
+              onchange="onCheckboxChange('${panelId}')" /></td>` : '';
+        const btn = isModify
+          ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+              onclick="useRecord('${esc(r.name)}','${r.type}','${esc(r.value)}',${r.ttl})">Use</button>`
+          : `<button type="button" class="btn btn-danger btn-sm py-0 px-2"
+              onclick="deleteRecordDirect('${esc(r.name)}','${r.type}','${esc(r.value)}')">Delete</button>`;
+        html += `<tr data-search="${(r.name+' '+r.type+' '+r.value).toLowerCase()}">
+          ${chkCell}
+          <td><span class="badge bg-secondary">${r.type}</span></td>
           <td class="fw-semibold">${r.name}</td>
-          <td class="text-break" style="max-width:260px;font-size:12px">${r.value}</td>
+          <td class="text-break" style="max-width:240px;font-size:12px">${r.value}</td>
           <td>${r.ttl}</td><td>${btn}</td></tr>`;
       });
+
       html += '</tbody></table></div>';
+
+      if (!isModify) {
+        html += `<button type="button" id="${panelId}_batchBtn" class="btn btn-danger btn-sm d-none mt-1"
+          onclick="deleteSelectedRecords('${panelId}')">
+          &#128465; Delete Selected (<span id="${panelId}_selCount">0</span>)
+        </button>`;
+      }
+
       panel.innerHTML = html;
     } catch(e) {
       panel.innerHTML = `<div class="alert alert-danger small py-2">Failed to load records: ${e.message}</div>`;
     }
+  }
+
+  function filterRecords(panelId, q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll(`#${panelId} tbody tr`).forEach(row => {
+      row.style.display = (row.dataset.search || '').includes(lower) ? '' : 'none';
+    });
+  }
+
+  function toggleAllCheckboxes(panelId, checked) {
+    document.querySelectorAll(`.${panelId}_chk`).forEach(c => c.checked = checked);
+    onCheckboxChange(panelId);
+  }
+
+  function onCheckboxChange(panelId) {
+    const count = document.querySelectorAll(`.${panelId}_chk:checked`).length;
+    const btn = document.getElementById(`${panelId}_batchBtn`);
+    const cnt = document.getElementById(`${panelId}_selCount`);
+    if (btn) btn.classList.toggle('d-none', count === 0);
+    if (cnt) cnt.textContent = count;
+  }
+
+  // Delete a single record directly from the records table (bypasses Submit button).
+  function deleteRecordDirect(name, type, value) {
+    const justif = (document.getElementById('justification').value || '').trim();
+    if (justif.length < 20) {
+      alert('Please fill in the Business Justification (minimum 20 characters) before deleting.');
+      document.getElementById('justification').focus();
+      return;
+    }
+    // Set hidden fields and open confirmation modal immediately.
+    document.getElementById('del_type').value  = type;
+    document.getElementById('del_label').value = name;
+    document.getElementById('del_value').value = value;
+    document.getElementById('h_label').value        = name;
+    document.getElementById('h_record_type').value   = type;
+    document.getElementById('h_value').value         = value;
+    document.getElementById('h_ttl').value           = '300';
+    document.getElementById('deleteConfirmTarget').textContent = name;
+    document.getElementById('deleteConfirmInput').value = '';
+    document.getElementById('deleteConfirmBtn').disabled = true;
+    getDeleteModal().show();
+  }
+
+  // Batch delete selected records via AJAX (no page reload).
+  async function deleteSelectedRecords(panelId) {
+    const store = window['_records_' + panelId];
+    if (!store) return;
+    const { records, zone } = store;
+    const idxs = [...document.querySelectorAll(`.${panelId}_chk:checked`)].map(c => parseInt(c.dataset.idx));
+    const selected = idxs.map(i => records[i]).filter(Boolean);
+    if (!selected.length) return;
+
+    const justif = (document.getElementById('justification').value || '').trim();
+    if (justif.length < 20) {
+      alert('Please fill in the Business Justification (minimum 20 characters) before deleting.');
+      document.getElementById('justification').focus();
+      return;
+    }
+
+    const names = selected.map(r => `• ${r.type} ${r.name}`).join('\n');
+    if (!confirm(`Delete ${selected.length} record(s)?\n\n${names}\n\nThis cannot be undone.`)) return;
+
+    let ok = 0, failed = [];
+    for (const r of selected) {
+      try {
+        const res = await fetch('/zones/api/delete-record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zone, label: r.name, record_type: r.type })
+        });
+        const d = await res.json();
+        if (d.error) failed.push(`${r.name}: ${d.error}`);
+        else ok++;
+      } catch(e) { failed.push(`${r.name}: ${e.message}`); }
+    }
+
+    const msg = failed.length
+      ? `Deleted ${ok}. Failed:\n${failed.join('\n')}`
+      : `✅ Deleted ${ok} record(s).`;
+    alert(msg);
+    loadExistingRecords(zone, panelId, 'del');
   }
 
   function useRecord(name, type, value, ttl) {
@@ -358,9 +469,7 @@
   }
 
   function fillDeleteRow(name, type, value) {
-    document.getElementById('del_type').value  = type;
-    document.getElementById('del_label').value = name;
-    document.getElementById('del_value').value = value;
+    deleteRecordDirect(name, type, value);
   }
 
   // ── Action toggle ─────────────────────────────────────────────────────
@@ -549,7 +658,7 @@
   }
 
   function checkDeleteConfirm() {
-    const target = document.getElementById('deleteConfirmTarget').textContent;
+    const target = document.getElementById('deleteConfirmTarget').textContent.trim();
     const input  = document.getElementById('deleteConfirmInput').value.trim();
     document.getElementById('deleteConfirmBtn').disabled = (input !== target);
   }
