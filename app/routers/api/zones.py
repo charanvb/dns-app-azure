@@ -125,19 +125,28 @@ async def get_zones(
 @router.get("/records", summary="Get records in a zone (JSON)")
 async def get_zone_records(zone: str, search: str = "", limit: int = 10000) -> JSONResponse:
     """Return up to 10,000 records for a specific zone with optional search."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[API] get_zone_records called - zone={zone}, search={search}, limit={limit}")
+    
     if not zone:
+        logger.error("[API] No zone parameter provided")
         return JSONResponse({"error": "zone parameter is required"}, status_code=400)
     
     try:
         service = _get_dns_service()
         search_suffix = search.strip() or None
         # Cap at 10k to prevent overload
+        logger.info(f"[API] Calling service.list_records_by_zone with top={min(limit, 10000)}, search_suffix={search_suffix}")
         records, is_limited = service.list_records_by_zone(
             settings.dns_resource_group,
             zone,
             top=min(limit, 10000),
             search_suffix=search_suffix,
         )
+        
+        logger.info(f"[API] Retrieved {len(records)} records, is_limited={is_limited}")
         
         return JSONResponse({
             "records": [
@@ -154,6 +163,7 @@ async def get_zone_records(zone: str, search: str = "", limit: int = 10000) -> J
             "is_limited": is_limited,
         })
     except Exception as exc:
+        logger.exception(f"[API] Error fetching records for zone {zone}: {exc}")
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 

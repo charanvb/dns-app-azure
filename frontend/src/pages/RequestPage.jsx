@@ -78,11 +78,17 @@ export default function RequestPage() {
     setShowZoneDropdown(false);
   };
 
-  const { data: existingRecords, isLoading: recordsLoading } = useQuery({
+  const { data: existingRecords, isLoading: recordsLoading, error: recordsError } = useQuery({
     queryKey: ['zone-records', selectedZone],
-    queryFn: () => api.getZoneRecords(selectedZone),
+    queryFn: async () => {
+      console.log('[RequestPage] Fetching records for zone:', selectedZone);
+      const result = await api.getZoneRecords(selectedZone);
+      console.log('[RequestPage] Records received:', result);
+      return result;
+    },
     enabled: !!selectedZone && (selectedAction === 'modify' || selectedAction === 'delete' || selectedAction === 'create'),
     staleTime: 300000, // 5 minutes
+    retry: 1, // Only retry once
   });
 
   const submitMutation = useMutation({
@@ -275,6 +281,7 @@ export default function RequestPage() {
                   zone={selectedZone}
                   existingRecords={existingRecords?.records || []}
                   isLoading={recordsLoading}
+                  error={recordsError}
                   onRecordsChange={setRecordsToSubmit}
                 />
               )}
@@ -284,6 +291,7 @@ export default function RequestPage() {
                   zone={selectedZone}
                   existingRecords={existingRecords?.records || []}
                   isLoading={recordsLoading}
+                  error={recordsError}
                   onRecordsChange={setRecordsToSubmit}
                 />
               )}

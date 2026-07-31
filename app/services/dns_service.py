@@ -66,19 +66,29 @@ class DnsService:
         search_suffix: str | None = None,
     ) -> tuple[list[DnsRecord], bool]:
         """Return up to `top` records and whether more exist (is_limited)."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"[DnsService] list_records_by_zone - rg={resource_group}, zone={zone}, top={top}, search={search_suffix}")
+        
         if search_suffix:
             # Search: load ALL records from Azure then filter by substring on name.
+            logger.info("[DnsService] Using search mode - loading all records then filtering")
             raw = executor.list_zone_records(
                 self._client, resource_group, zone, top=None
             )
+            logger.info(f"[DnsService] Loaded {len(raw)} raw records from Azure")
             term = search_suffix.lower()
             raw = [rs for rs in raw if term in (rs.name or "").lower()]
-            is_limited = len(raw) > 100
-            raw = raw[:100]
+            logger.info(f"[DnsService] After search filter: {len(raw)} records")
+            is_limited = len(raw) > top
+            raw = raw[:top]
         else:
+            logger.info(f"[DnsService] Using direct mode - loading top={top+1} records")
             raw = executor.list_zone_records(
                 self._client, resource_group, zone, top=top + 1
             )
+            logger.info(f"[DnsService] Loaded {len(raw)} raw records from Azure")
             is_limited = len(raw) > top
             raw = raw[:top]
 
@@ -96,6 +106,8 @@ class DnsService:
                 value=self._extract_value(rs),
                 raw_values=raw_values,
             ))
+        
+        logger.info(f"[DnsService] Returning {len(records)} records, is_limited={is_limited}")
         return records, is_limited
 
     def create_or_update_record(

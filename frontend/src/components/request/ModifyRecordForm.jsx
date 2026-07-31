@@ -4,7 +4,7 @@ import Input from '../shared/Input';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import Alert from '../shared/Alert';
 
-export default function ModifyRecordForm({ zone, existingRecords, isLoading, onRecordsChange }) {
+export default function ModifyRecordForm({ zone, existingRecords, isLoading, error, onRecordsChange }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecords, setSelectedRecords] = useState([]);
   const [stagedRecords, setStagedRecords] = useState([]);
@@ -110,6 +110,18 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, onR
 
   if (isLoading) {
     return <LoadingSpinner text="Loading existing records..." />;
+  }
+
+  if (error) {
+    return (
+      <Alert variant="error" title="Failed to load records">
+        <div className="space-y-2">
+          <p>{error.message || 'An error occurred while fetching records'}</p>
+          <p className="text-xs">Zone: {zone}</p>
+          <p className="text-xs">Please check the browser console for details or contact support.</p>
+        </div>
+      </Alert>
+    );
   }
 
   return (
