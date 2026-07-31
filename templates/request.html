@@ -246,6 +246,7 @@
       <input type="hidden" id="h_record_type" name="record_type" />
       <input type="hidden" id="h_value" name="value" />
       <input type="hidden" id="h_ttl" name="ttl" value="300" />
+      <input type="hidden" id="h_records_json" name="records_json" />
 
       <!-- ── Justification ─────────────────────────────────────────────── -->
       <div id="section_justification" style="display:none">
@@ -402,14 +403,9 @@
     if (cnt) cnt.textContent = count;
   }
 
-  // Delete a single record directly — no modal, no typing required.
+  // Pre-fill the delete form row — user reviews then clicks Submit Request.
   function deleteRecordDirect(name, type, value) {
-    const justif = (document.getElementById('justification').value || '').trim();
-    if (justif.length < 20) {
-      alert('Please fill in the Business Justification (minimum 20 characters) before deleting.');
-      document.getElementById('justification').focus();
-      return;
-    }
+    document.getElementById('h_records_json').value = ''; // clear any multi-select state
     document.getElementById('del_type').value       = type;
     document.getElementById('del_label').value      = name;
     document.getElementById('del_value').value      = value;
@@ -417,11 +413,11 @@
     document.getElementById('h_record_type').value  = type;
     document.getElementById('h_value').value        = value;
     document.getElementById('h_ttl').value          = '300';
-    document.getElementById('srForm').submit();
+    document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
   }
 
-  // Batch delete selected records via AJAX — no confirmation dialog required.
-  async function deleteSelectedRecords(panelId) {
+  // Stage selected records for batch deletion — user reviews then clicks Submit Request.
+  function deleteSelectedRecords(panelId) {
     const store = window['_records_' + panelId];
     if (!store) return;
     const { records, zone } = store;
@@ -429,29 +425,13 @@
     const selected = idxs.map(i => records[i]).filter(Boolean);
     if (!selected.length) return;
 
-    const justif = (document.getElementById('justification').value || '').trim();
-    if (justif.length < 20) {
-      alert('Please fill in the Business Justification (minimum 20 characters) before deleting.');
-      document.getElementById('justification').focus();
-      return;
-    }
-
-    let ok = 0, failed = [];
-    for (const r of selected) {
-      try {
-        const res = await fetch('/zones/api/delete-record', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ zone, label: r.name, record_type: r.type })
-        });
-        const d = await res.json();
-        if (d.error) failed.push(`${r.name}: ${d.error}`);
-        else ok++;
-      } catch(e) { failed.push(`${r.name}: ${e.message}`); }
-    }
-
-    alert(failed.length ? `Deleted ${ok}. Failed:\n${failed.join('\n')}` : `✅ Deleted ${ok} record(s).`);
-    loadExistingRecords(zone, panelId, 'del');
+    const payload = selected.map(r => ({ type: r.type, label: r.name, value: r.value, ttl: 300 }));
+    document.getElementById('h_records_json').value = JSON.stringify(payload);
+    // Show a summary in the Record to Delete row so the user knows what is staged.
+    document.getElementById('del_label').value = selected.map(r => r.name).join(', ');
+    document.getElementById('del_type').value  = selected.length === 1 ? selected[0].type : '';
+    document.getElementById('del_value').value = `${selected.length} record(s) staged for deletion`;
+    document.getElementById('section_justification').scrollIntoView({behavior:'smooth'});
   }
 
   function useRecord(name, type, value, ttl) {
@@ -678,19 +658,28 @@
     }
 
     // Populate hidden fields for each action type.
-    const firstCard = document.querySelector('#recCards .rec-card');
 
     if (action === 'create') {
-      if (!firstCard) { alert('Please add at least one record to create.'); return; }
-      const type = firstCard.dataset.type;
-      const p    = firstCard.querySelector('input[id$="_label"]');
-      const v    = firstCard.querySelector('input[id$="_val"], textarea[id$="_val"]');
-      const t    = firstCard.querySelector('input[id$="_ttl"]');
-      document.getElementById('h_label').value       = p ? p.value : '';
-      document.getElementById('h_record_type').value  = type;
-      document.getElementById('h_value').value        = v ? v.value : '';
-      document.getElementById('h_ttl').value          = t ? t.value : '300';
-      if (p && !validateLabel(p.value, null)) return;
+      const allCards = [...document.querySelectorAll('#recCards .rec-card')];
+      if (!allCards.length) { alert('Please add at least one record to create.'); return; }
+      const allRecords = [];
+      for (let i = 0; i < allCards.length; i++) {
+        const card  = allCards[i];
+        const type  = card.dataset.type;
+        const p     = card.querySelector('input[id$="_label"]');
+        const v     = card.querySelector('input[id$="_val"], textarea[id$="_val"]');
+        const t     = card.querySelector('input[id$="_ttl"]');
+        const lbl   = p ? p.value.trim() : '';
+        if (!lbl) { alert(`Record ${i+1}: Label is required.`); if (p) p.focus(); return; }
+        if (!validateLabel(lbl, null)) return;
+        allRecords.push({ type, label: lbl, value: v ? v.value.trim() : '', ttl: t ? t.value : '300' });
+      }
+      // First record goes to single-record fields; all records go into records_json.
+      document.getElementById('h_label').value        = allRecords[0].label;
+      document.getElementById('h_record_type').value   = allRecords[0].type;
+      document.getElementById('h_value').value         = allRecords[0].value;
+      document.getElementById('h_ttl').value           = allRecords[0].ttl;
+      document.getElementById('h_records_json').value  = JSON.stringify(allRecords);
     }
 
     if (action === 'modify') {
@@ -707,17 +696,19 @@
       document.getElementById('h_ttl').value          = ttl;
     }
 
-    // Delete confirmation modal
     if (action === 'delete') {
-      const lbl  = (document.getElementById('del_label').value  || '').trim();
-      const type = document.getElementById('del_type').value;
-      const val  = (document.getElementById('del_value').value  || '').trim();
-      if (!lbl)  { alert('Please click Delete on a record above.'); return; }
-      if (!type) { alert('Please select a record type.'); return; }
-      document.getElementById('h_label').value       = lbl;
-      document.getElementById('h_record_type').value  = type;
-      document.getElementById('h_value').value        = val;
-      document.getElementById('h_ttl').value          = '300';
+      // Multi-select: h_records_json already set by deleteSelectedRecords.
+      if (!document.getElementById('h_records_json').value) {
+        const lbl  = (document.getElementById('del_label').value  || '').trim();
+        const type = document.getElementById('del_type').value;
+        const val  = (document.getElementById('del_value').value  || '').trim();
+        if (!lbl)  { alert('Please click Delete on a record above.'); return; }
+        if (!type) { alert('Please select a record type.'); return; }
+        document.getElementById('h_label').value        = lbl;
+        document.getElementById('h_record_type').value   = type;
+        document.getElementById('h_value').value         = val;
+        document.getElementById('h_ttl').value           = '300';
+      }
     }
 
     this.submit();
@@ -730,6 +721,7 @@
       .forEach(id => document.getElementById(id).style.display = 'none');
     document.getElementById('recCards').innerHTML = '';
     document.getElementById('blacklistBanner').classList.add('d-none');
+    document.getElementById('h_records_json').value = '';
     document.getElementById('existingRecordsModify').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
     document.getElementById('existingRecordsDelete').innerHTML = '<p class="text-muted small">Select a zone to load existing records.</p>';
   }

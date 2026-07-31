@@ -49,32 +49,17 @@ async def request_form(request: Request) -> HTMLResponse:
 
 @router.post("", response_class=HTMLResponse, summary="Submit DNS change request")
 async def submit_request(request: Request) -> HTMLResponse:
-    """Validate, rate-limit, and record a submitted DNS change request."""
-    client_ip = _get_client_ip(request)
+    """Validate and execute one or more DNS changes submitted from the request form."""
     form = await request.form()
-
     action = form.get("action", "")
-    zone = form.get("zone", "")
-    label = form.get("label", "")
-    record_type = form.get("record_type", "")
-    value = form.get("value", "")
+    zone   = form.get("zone", "")
 
-    # ── Server-side validation ────────────────────────────────────────────
+    # ── Zone validation (always) ──────────────────────────────────────────
     errors: list[str] = []
-
     if not zone:
         errors.append("Please select a DNS zone.")
     elif _svc.is_blacklisted(zone):
         errors.append(f"Zone '{zone}' must be managed via Micetro.")
-
-    errors.extend(_svc.validate_label(label))
-
-    if record_type == "A":
-        errors.extend(_svc.validate_ipv4(value))
-    elif record_type == "AAAA":
-        errors.extend(_svc.validate_ipv6(value))
-    elif not value:
-        errors.append("Record value is required.")
 
     if errors:
         zones = []
@@ -98,34 +83,101 @@ async def submit_request(request: Request) -> HTMLResponse:
             status_code=422,
         )
 
-    ttl = int(form.get("ttl", "300") or 300)
+    # ── Build records list ────────────────────────────────────────────────
+    records_json_str = form.get("records_json", "")
+    all_records: list[dict] = []
 
-    # ── Execute DNS change ────────────────────────────────────────────────
-    dns_error: str | None = None
-    try:
-        dns = DnsService(settings.dns_subscription_id)
-        if action == "delete":
-            dns.delete_record(settings.dns_resource_group, zone, label, record_type)
-        else:
-            dns.create_or_update_record(
-                settings.dns_resource_group, zone, label, record_type, value, ttl
+    if records_json_str:
+        try:
+            all_records = json.loads(records_json_str)
+        except Exception:
+            all_records = []
+
+    if not all_records:
+        # Single-record fallback — validate label and value individually.
+        label       = form.get("label", "")
+        record_type = form.get("record_type", "")
+        value       = form.get("value", "")
+        try:
+            ttl = int(form.get("ttl", "300") or 300)
+        except (ValueError, TypeError):
+            ttl = 300
+
+        single_errors: list[str] = []
+        single_errors.extend(_svc.validate_label(label))
+        if record_type == "A":
+            single_errors.extend(_svc.validate_ipv4(value))
+        elif record_type == "AAAA":
+            single_errors.extend(_svc.validate_ipv6(value))
+        elif not value and action != "delete":
+            single_errors.append("Record value is required.")
+
+        if single_errors:
+            zones = []
+            try:
+                zones = DnsService(settings.dns_subscription_id).list_zones_by_resource_group(
+                    settings.dns_resource_group
+                )
+            except Exception:
+                pass
+            return _templates.TemplateResponse(
+                "request.html",
+                {
+                    "request": request,
+                    "app_name": settings.app_name,
+                    "app_version": settings.app_version,
+                    "environment": settings.environment,
+                    "zones": zones,
+                    "blacklisted_json": json.dumps(list(BLACKLISTED_DOMAINS)),
+                    "errors": single_errors,
+                },
+                status_code=422,
             )
-    except Exception as exc:
-        dns_error = str(exc)
+        all_records = [{"type": record_type, "label": label, "value": value, "ttl": ttl}]
+
+    # ── Execute every record ──────────────────────────────────────────────
+    dns_svc = DnsService(settings.dns_subscription_id)
+    results: list[dict] = []
+
+    for rec in all_records:
+        rec_label = str(rec.get("label", "")).strip()
+        rec_type  = str(rec.get("type",  "")).strip()
+        rec_value = str(rec.get("value", "")).strip()
+        try:
+            rec_ttl = int(rec.get("ttl", 300) or 300)
+        except (ValueError, TypeError):
+            rec_ttl = 300
+
+        rec_error: str | None = None
+        try:
+            if action == "delete":
+                dns_svc.delete_record(
+                    settings.dns_resource_group, zone, rec_label, rec_type
+                )
+            else:
+                dns_svc.create_or_update_record(
+                    settings.dns_resource_group, zone, rec_label, rec_type, rec_value, rec_ttl
+                )
+        except Exception as exc:
+            rec_error = str(exc)
+
+        results.append({
+            "label": rec_label,
+            "type":  rec_type,
+            "value": rec_value,
+            "ttl":   rec_ttl,
+            "error": rec_error,
+        })
 
     return _templates.TemplateResponse(
         "confirmation.html",
         {
-            "request": request,
-            "app_name": settings.app_name,
+            "request":     request,
+            "app_name":    settings.app_name,
             "app_version": settings.app_version,
             "environment": settings.environment,
-            "action": action,
-            "zone": zone,
-            "label": label,
-            "record_type": record_type,
-            "value": value,
-            "ttl": ttl,
-            "dns_error": dns_error,
+            "action":      action,
+            "zone":        zone,
+            "results":     results,
         },
     )
