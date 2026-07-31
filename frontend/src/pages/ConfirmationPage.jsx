@@ -6,7 +6,7 @@ import Alert from '../components/shared/Alert';
 
 export default function ConfirmationPage() {
   const location = useLocation();
-  const { results = [], zone = '', action = '' } = location.state || {};
+  const { results = [], zone = '', action = '', summary = {}, request_id = null } = location.state || {};
 
   if (!results.length) {
     return (
@@ -23,8 +23,8 @@ export default function ConfirmationPage() {
     );
   }
 
-  const failedResults = results.filter((r) => r.error);
-  const successResults = results.filter((r) => !r.error);
+  const failedResults = results.filter((r) => r.status === 'error');
+  const successResults = results.filter((r) => r.status === 'success');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -45,10 +45,32 @@ export default function ConfirmationPage() {
           Zone: <span className="font-semibold">{zone}</span> • Action:{' '}
           <span className="font-semibold capitalize">{action}</span>
         </p>
+        {request_id && (
+          <p className="mt-1 text-xs text-gray-500">
+            Request ID: <code className="bg-gray-100 px-2 py-1 rounded">{request_id}</code>
+          </p>
+        )}
       </div>
 
+      {summary && summary.total > 0 && (
+        <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <Card className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{summary.total}</div>
+            <div className="text-sm text-gray-600">Total</div>
+          </Card>
+          <Card className="text-center">
+            <div className="text-2xl font-bold text-green-600">{summary.successful}</div>
+            <div className="text-sm text-gray-600">Successful</div>
+          </Card>
+          <Card className="text-center">
+            <div className="text-2xl font-bold text-red-600">{summary.failed}</div>
+            <div className="text-sm text-gray-600">Failed</div>
+          </Card>
+        </div>
+      )}
+
       <Card>
-        <h2 className="text-lg font-semibold mb-4">Results Summary</h2>
+        <h2 className="text-lg font-semibold mb-4">Detailed Results</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -62,27 +84,35 @@ export default function ConfirmationPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {results.map((result, index) => (
-                <tr key={index} className={result.error ? 'bg-red-50' : ''}>
+                <tr key={index} className={result.status === 'error' ? 'bg-red-50' : 'bg-green-50'}>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded">
+                    <span className="px-2 py-1 text-xs font-medium bg-white rounded border">
                       {result.type}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900">{result.label}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                    {result.value}
+                    {String(result.value)}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{result.ttl}s</td>
                   <td className="px-4 py-3">
-                    {result.error ? (
-                      <div className="flex items-center gap-2 text-red-600">
-                        <XCircle className="w-4 h-4" />
-                        <span className="text-xs">{result.error}</span>
+                    {result.status === 'error' ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-red-600">
+                          <XCircle className="w-4 h-4" />
+                          <span className="text-xs font-medium">Failed</span>
+                        </div>
+                        <div className="text-xs text-red-700">{result.error}</div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="w-4 h-4" />
-                        <span className="text-xs">Success</span>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle className="w-4 h-4" />
+                          <span className="text-xs font-medium">Success</span>
+                        </div>
+                        {result.message && (
+                          <div className="text-xs text-green-700">{result.message}</div>
+                        )}
                       </div>
                     )}
                   </td>

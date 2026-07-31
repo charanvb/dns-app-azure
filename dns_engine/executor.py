@@ -70,8 +70,10 @@ def create_or_update_record(
 ) -> None:
     """Create or overwrite a DNS record set.
 
-    For TXT records, `value` may be a JSON array string
-    (e.g. '["v=spf1 ...", "other string"]') or a plain string.
+    For TXT records, `value` may be pipe-separated or JSON array.
+    For MX records, `value` format: "priority exchange" (e.g., "10 mail.example.com")
+    For SRV records, `value` format: "priority weight port target" (e.g., "10 5 5060 sip.example.com")
+    For CAA records, `value` format: "flags tag value" (e.g., '0 issue "letsencrypt.org"')
     """
     rs = RecordSet(ttl=ttl)
     rt = record_type.upper()
@@ -83,11 +85,59 @@ def create_or_update_record(
     elif rt == "CNAME":
         rs.cname_record = CnameRecord(cname=value.strip())
     elif rt == "TXT":
-        try:
-            values = json.loads(value) if value.lstrip().startswith("[") else [value]
-        except Exception:
-            values = [value]
+        # Support both pipe-separated (from frontend) and JSON array
+        if '|' in value:
+            values = [v.strip() for v in value.split('|') if v.strip()]
+        else:
+            try:
+                values = json.loads(value) if value.lstrip().startswith("[") else [value]
+            except Exception:
+                values = [value]
         rs.txt_records = [TxtRecord(value=[str(v) for v in values if str(v).strip()])]
+    elif rt == "MX":
+        # Parse "priority exchange" format
+        parts = value.strip().split(None, 1)
+        if len(parts) != 2:
+            raise ValueError("MX record format: 'priority exchange' (e.g., '10 mail.example.com')")
+        try:
+            priority = int(parts[0])
+            exchange = parts[1].strip()
+            if priority < 0 or priority > 65535:
+                raise ValueError("MX priority must be 0-65535")
+            rs.mx_records = [MxRecord(preference=priority, exchange=exchange)]
+        except ValueError as e:
+            raise ValueError(f"Invalid MX record: {e}")
+    elif rt == "SRV":
+        # Parse "priority weight port target" format
+        parts = value.strip().split(None, 3)
+        if len(parts) != 4:
+            raise ValueError("SRV record format: 'priority weight port target' (e.g., '10 5 5060 sip.example.com')")
+        try:
+            priority = int(parts[0])
+            weight = int(parts[1])
+            port = int(parts[2])
+            target = parts[3].strip()
+            if not (0 <= priority <= 65535 and 0 <= weight <= 65535 and 0 <= port <= 65535):
+                raise ValueError("SRV priority/weight/port must be 0-65535")
+            rs.srv_records = [SrvRecord(priority=priority, weight=weight, port=port, target=target)]
+        except ValueError as e:
+            raise ValueError(f"Invalid SRV record: {e}")
+    elif rt == "CAA":
+        # Parse "flags tag value" format (value may be quoted)
+        parts = value.strip().split(None, 2)
+        if len(parts) != 3:
+            raise ValueError("CAA record format: 'flags tag value' (e.g., '0 issue \"letsencrypt.org\"')")
+        try:
+            flags = int(parts[0])
+            tag = parts[1].strip()
+            caa_value = parts[2].strip().strip('"')
+            if flags not in (0, 128):
+                raise ValueError("CAA flags must be 0 or 128")
+            if tag not in ('issue', 'issuewild', 'iodef'):
+                raise ValueError("CAA tag must be 'issue', 'issuewild', or 'iodef'")
+            rs.caa_records = [CaaRecord(flags=flags, tag=tag, value=caa_value)]
+        except ValueError as e:
+            raise ValueError(f"Invalid CAA record: {e}")
     else:
         raise ValueError(f"Record type '{record_type}' is not supported for self-service.")
 

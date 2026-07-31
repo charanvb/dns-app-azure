@@ -67,7 +67,7 @@ RECORD_TYPES: dict[str, RecordTypeSpec] = {
         value_placeholder="e.g. mail.example.com",
         multi_value=False,
         blocked=True,
-        blocked_reason="Email-related changes must be reviewed by the Messaging team.",
+        blocked_reason="MX records require email team approval. Contact UL_cloudops@hcltech.com",
     ),
     "SRV": RecordTypeSpec(
         name="SRV",
@@ -75,8 +75,8 @@ RECORD_TYPES: dict[str, RecordTypeSpec] = {
         value_label="Target",
         value_placeholder="e.g. svc.example.com",
         multi_value=False,
-        blocked=False,
-        blocked_reason="",
+        blocked=True,
+        blocked_reason="SRV records require infrastructure team approval. Contact UL_cloudops@hcltech.com",
     ),
     "NS": RecordTypeSpec(
         name="NS",

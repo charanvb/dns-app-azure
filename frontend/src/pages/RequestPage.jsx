@@ -83,6 +83,8 @@ export default function RequestPage() {
           results: data.results || [],
           zone: selectedZone,
           action: selectedAction,
+          summary: data.summary || {},
+          request_id: data.request_id || null,
         },
       });
     },

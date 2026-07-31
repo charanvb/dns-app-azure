@@ -10,7 +10,6 @@ const RECORD_TYPES = [
   { value: 'AAAA', label: 'AAAA (IPv6 Address)' },
   { value: 'CNAME', label: 'CNAME (Alias)' },
   { value: 'TXT', label: 'TXT (Text Record)' },
-  { value: 'SRV', label: 'SRV (Service Record)' },
 ];
 
 const RECORD_PLACEHOLDERS = {
@@ -18,7 +17,13 @@ const RECORD_PLACEHOLDERS = {
   AAAA: '2001:db8::1',
   CNAME: 'target.example.com',
   TXT: 'v=spf1 include:example.com -all',
-  SRV: 'svc.example.com',
+};
+
+const RECORD_HINTS = {
+  A: 'IPv4 address only (e.g., 203.0.113.10)',
+  AAAA: 'IPv6 address only (e.g., 2001:db8::1)',
+  CNAME: 'Fully qualified domain name only (e.g., target.example.com)',
+  TXT: 'Any text - supports multiple values',
 };
 
 const validateIPv4 = (value) => {
@@ -140,6 +145,7 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
           if (!validateFQDN(value)) {
             updatedRecord.error = 'CNAME records must contain a valid fully qualified domain name only';
           }
+
         }
       }
 
@@ -248,8 +254,9 @@ export default function CreateRecordForm({ zone, onRecordsChange }) {
                 </div>
               ) : (
                 <Input
-                  label={`Value ${record.type === 'A' ? '(IPv4 only)' : record.type === 'AAAA' ? '(IPv6 only)' : record.type === 'CNAME' ? '(FQDN only)' : ''}`}
+                  label="Value"
                   required
+                  hint={RECORD_HINTS[record.type] || ''}
                   value={record.value}
                   onChange={(e) => updateRecord(record.id, 'value', e.target.value)}
                   placeholder={RECORD_PLACEHOLDERS[record.type]}
