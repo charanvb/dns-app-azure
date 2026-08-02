@@ -21,7 +21,7 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, err
   }, [searchQuery]);
 
   // Server-side search when user has typed at least 2 characters
-  const { data: searchResults, isLoading: searchLoading } = useQuery({
+  const { data: searchResults, isLoading: searchLoading, error: searchError } = useQuery({
     queryKey: ['zone-records-search', zone, debouncedSearch],
     queryFn: async () => {
       console.log('[DeleteRecordForm] Searching for:', debouncedSearch);
@@ -31,6 +31,8 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, err
     },
     enabled: debouncedSearch.length >= 2,
     staleTime: 60000,
+    retry: 1,
+    retryDelay: 1000,
   });
 
   // Determine which records to display
@@ -109,15 +111,22 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, err
       {searchLoading && (
         <div className="flex items-center justify-center py-8">
           <LoadingSpinner size="md" />
-          <span className="ml-3 text-gray-600">Searching...</span>
+          <span className="ml-3 text-gray-600">Searching across all records...</span>
         </div>
       )}
 
-      {!searchLoading && displayRecords.length === 0 && !showSearchPrompt ? (
+      {searchError && (
+        <Alert variant="error" title="Search Failed">
+          <p>Could not search records: {searchError.message}</p>
+          <p className="text-sm mt-2">Try a different search term or browse the first 1000 records by clearing the search.</p>
+        </Alert>
+      )}
+
+      {!searchLoading && !searchError && displayRecords.length === 0 && !showSearchPrompt ? (
         <Alert variant="info">
           {debouncedSearch ? `No records found matching "${debouncedSearch}"` : 'No records found in this zone.'}
         </Alert>
-      ) : !searchLoading && !showSearchPrompt ? (
+      ) : !searchLoading && !searchError && !showSearchPrompt ? (
         <>
           {debouncedSearch && searchResults && (
             <div className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
