@@ -120,25 +120,56 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
     const updated = records.map((r) => {
       if (r.id !== id) return r;
       
-      // Check if the new value is SPF
-      const isNewValueSPF = (value || '').toLowerCase().includes('v=spf1');
-      
-      // Check if any OTHER value in this record already has SPF
-      const hasOtherSPF = r.txtValues.some((v, idx) => 
-        idx !== index && (v || '').toLowerCase().includes('v=spf1')
-      );
-      
-      // Prevent multiple SPF values in the same record
-      if (isNewValueSPF && hasOtherSPF) {
-        return { 
-          ...r, 
-          error: 'Only one SPF record is allowed per hostname. This record already contains an SPF value. Please remove the existing SPF value first or use a different TXT value.'
-        };
-      }
-      
+      // Update the TXT values
       const newTxtValues = [...r.txtValues];
       newTxtValues[index] = value;
-      return { ...r, txtValues: newTxtValues, error: null };
+      const updatedRecord = { ...r, txtValues: newTxtValues };
+      
+      // Run ALL validations (same as updateRecord)
+      updatedRecord.error = null;
+
+      // Value format validation (not applicable for TXT)
+      // TXT records can have any text value
+
+      // Label validation (always run if label exists)
+      if (updatedRecord.label) {
+        // Check for duplicate in existing records
+        if (recordExists(updatedRecord.label, updatedRecord.type)) {
+          updatedRecord.error = `A ${updatedRecord.type} record with label "${updatedRecord.label}" already exists in this zone. Please use the Modify action to update the existing record instead of creating a new one.`;
+        }
+        // Check for duplicate in current form
+        else if (hasDuplicateInRecords(id, updatedRecord.label, updatedRecord.type)) {
+          updatedRecord.error = `You already have a ${updatedRecord.type} record with label "${updatedRecord.label}" in this request`;
+        }
+        else if (updatedRecord.label.includes('*')) {
+          updatedRecord.error = 'Wildcards (*) are not permitted';
+        } else if (updatedRecord.label.length > 253) {
+          updatedRecord.error = 'Label exceeds maximum length (253)';
+        } else if (updatedRecord.label !== '@' && !/^[a-zA-Z0-9][a-zA-Z0-9.\-]*$/.test(updatedRecord.label)) {
+          updatedRecord.error = 'Only a-z, 0-9, hyphens and dots allowed';
+        }
+      }
+
+      // TXT-specific validation (always run for TXT records)
+      if (updatedRecord.type === 'TXT' && !updatedRecord.error) {
+        // Count how many values contain SPF
+        const spfCount = updatedRecord.txtValues.filter(v => (v || '').toLowerCase().includes('v=spf1')).length;
+        
+        // Check if multiple SPF values in same record
+        if (spfCount > 1) {
+          updatedRecord.error = 'Only one SPF value is allowed per record. Please remove duplicate SPF values.';
+        }
+        // Check if SPF exists in Azure or other records
+        else if (spfCount === 1 && updatedRecord.label) {
+          if (hasSPF(updatedRecord.label)) {
+            updatedRecord.error = `An SPF record already exists for "${updatedRecord.label}". Please use the Modify action to update the existing SPF record instead of creating a new one.`;
+          } else if (hasSPFInCurrentRecords(id, updatedRecord.label)) {
+            updatedRecord.error = `You already have an SPF record for "${updatedRecord.label}" in this request. Only one SPF record per label is allowed`;
+          }
+        }
+      }
+
+      return updatedRecord;
     });
     setRecords(updated);
     updateValidRecords(updated);
