@@ -100,7 +100,7 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
   const addTxtValue = (id) => {
     const updated = records.map((r) => {
       if (r.id !== id) return r;
-      return { ...r, txtValues: [...r.txtValues, ''] };
+      return { ...r, txtValues: [...r.txtValues, ''], error: null };
     });
     setRecords(updated);
     updateValidRecords(updated);
@@ -119,6 +119,23 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
   const updateTxtValue = (id, index, value) => {
     const updated = records.map((r) => {
       if (r.id !== id) return r;
+      
+      // Check if the new value is SPF
+      const isNewValueSPF = (value || '').toLowerCase().includes('v=spf1');
+      
+      // Check if any OTHER value in this record already has SPF
+      const hasOtherSPF = r.txtValues.some((v, idx) => 
+        idx !== index && (v || '').toLowerCase().includes('v=spf1')
+      );
+      
+      // Prevent multiple SPF values in the same record
+      if (isNewValueSPF && hasOtherSPF) {
+        return { 
+          ...r, 
+          error: 'Only one SPF record is allowed per hostname. This record already contains an SPF value. Please remove the existing SPF value first or use a different TXT value.'
+        };
+      }
+      
       const newTxtValues = [...r.txtValues];
       newTxtValues[index] = value;
       return { ...r, txtValues: newTxtValues, error: null };
@@ -217,8 +234,16 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
       // Check SPF when TXT value changes
       if (field === 'txtValues' || (r.type === 'TXT' && field === 'value')) {
         const txtValues = field === 'txtValues' ? value : r.txtValues;
-        const hasSPFValue = txtValues.some(v => (v || '').toLowerCase().includes('v=spf1'));
-        if (hasSPFValue && r.label) {
+        
+        // Count how many values contain SPF
+        const spfCount = txtValues.filter(v => (v || '').toLowerCase().includes('v=spf1')).length;
+        
+        // Check if multiple SPF values in same record
+        if (spfCount > 1) {
+          updatedRecord.error = 'Only one SPF value is allowed per record. Please remove duplicate SPF values.';
+        }
+        // Check if SPF exists in Azure or other records
+        else if (spfCount === 1 && r.label) {
           if (hasSPF(r.label)) {
             updatedRecord.error = `An SPF record already exists for "${r.label}". Please modify the existing one instead`;
           } else if (hasSPFInCurrentRecords(id, r.label)) {
