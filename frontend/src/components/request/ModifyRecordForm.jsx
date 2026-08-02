@@ -303,7 +303,7 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
                 </div>
               )}
             </>
-          )}
+          ) : null}
         </>
       )}
 
