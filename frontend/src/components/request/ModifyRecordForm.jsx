@@ -4,7 +4,7 @@ import { Search, Plus, X } from 'lucide-react';
 import Input from '../shared/Input';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import Alert from '../shared/Alert';
-import api from '../../api/client';
+import { api } from '../../api/client';
 
 export default function ModifyRecordForm({ zone, existingRecords, isLoading, error, onRecordsChange }) {
   const [searchQuery, setSearchQuery] = useState('');

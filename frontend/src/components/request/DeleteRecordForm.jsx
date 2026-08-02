@@ -5,7 +5,7 @@ import Input from '../shared/Input';
 import Button from '../shared/Button';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import Alert from '../shared/Alert';
-import api from '../../api/client';
+import { api } from '../../api/client';
 
 export default function DeleteRecordForm({ zone, existingRecords, isLoading, error, onRecordsChange }) {
   const [searchQuery, setSearchQuery] = useState('');
