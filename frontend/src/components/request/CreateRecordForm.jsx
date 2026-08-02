@@ -41,12 +41,22 @@ const validateFQDN = (value) => /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.
 export default function CreateRecordForm({ zone, existingRecords = [], onRecordsChange }) {
   const [records, setRecords] = useState([]);
 
-  // Helper to check if SPF record exists
+  // Helper to check if SPF record exists in Azure
   const hasSPF = (label) => {
     return existingRecords.some(r => 
       r.name === label && 
       r.type === 'TXT' && 
       (r.value || '').toLowerCase().includes('v=spf1')
+    );
+  };
+
+  // Helper to check if SPF record exists in current form records
+  const hasSPFInCurrentRecords = (currentId, label) => {
+    return records.some(r => 
+      r.id !== currentId && 
+      r.label === label && 
+      r.type === 'TXT' &&
+      r.txtValues.some(v => (v || '').toLowerCase().includes('v=spf1'))
     );
   };
 
@@ -187,9 +197,13 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
         else if (hasDuplicateInRecords(id, value, r.type)) {
           updatedRecord.error = `You already have a ${r.type} record with label "${value}" in this request`;
         }
-        // Check for existing SPF record
-        else if (r.type === 'TXT' && r.txtValues.some(v => v.toLowerCase().includes('v=spf1')) && hasSPF(value)) {
-          updatedRecord.error = `An SPF record already exists for "${value}". Please modify the existing one instead`;
+        // Check for existing SPF record (in Azure OR in current form)
+        else if (r.type === 'TXT' && r.txtValues.some(v => v.toLowerCase().includes('v=spf1'))) {
+          if (hasSPF(value)) {
+            updatedRecord.error = `An SPF record already exists for "${value}". Please modify the existing one instead`;
+          } else if (hasSPFInCurrentRecords(id, value)) {
+            updatedRecord.error = `You already have an SPF record for "${value}" in this request. Only one SPF record per label is allowed`;
+          }
         }
         else if (value.includes('*')) {
           updatedRecord.error = 'Wildcards (*) are not permitted';
@@ -204,8 +218,12 @@ export default function CreateRecordForm({ zone, existingRecords = [], onRecords
       if (field === 'txtValues' || (r.type === 'TXT' && field === 'value')) {
         const txtValues = field === 'txtValues' ? value : r.txtValues;
         const hasSPFValue = txtValues.some(v => (v || '').toLowerCase().includes('v=spf1'));
-        if (hasSPFValue && r.label && hasSPF(r.label)) {
-          updatedRecord.error = `An SPF record already exists for "${r.label}". Please modify the existing one instead`;
+        if (hasSPFValue && r.label) {
+          if (hasSPF(r.label)) {
+            updatedRecord.error = `An SPF record already exists for "${r.label}". Please modify the existing one instead`;
+          } else if (hasSPFInCurrentRecords(id, r.label)) {
+            updatedRecord.error = `You already have an SPF record for "${r.label}" in this request. Only one SPF record per label is allowed`;
+          }
         }
       }
 

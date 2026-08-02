@@ -95,6 +95,22 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
 
   const updateTxtValue = (recordIndex, valueIndex, value) => {
     const updated = [...stagedRecords];
+    const record = updated[recordIndex];
+    
+    // Check if the new value is SPF
+    const isNewValueSPF = (value || '').toLowerCase().includes('v=spf1');
+    
+    // Check if any OTHER value in this record already has SPF
+    const hasOtherSPF = record.txtValues.some((v, idx) => 
+      idx !== valueIndex && (v || '').toLowerCase().includes('v=spf1')
+    );
+    
+    // Prevent multiple SPF values in the same record
+    if (isNewValueSPF && hasOtherSPF) {
+      alert('Only one SPF record is allowed per hostname. This record already contains an SPF value. Please remove the existing SPF value first or use a different TXT value.');
+      return;
+    }
+    
     updated[recordIndex].txtValues[valueIndex] = value;
     setStagedRecords(updated);
     updateStagedRecord(recordIndex, 'txtValues', updated[recordIndex].txtValues);
