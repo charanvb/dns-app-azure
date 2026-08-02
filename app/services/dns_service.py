@@ -75,17 +75,59 @@ class DnsService:
         AZURE_MAX_LIMIT = 1000
         
         if search_suffix:
-            # Search: load ALL records from Azure then filter by substring on name.
-            logger.info("[DnsService] Using search mode - loading all records then filtering")
-            raw = executor.list_zone_records(
-                self._client, resource_group, zone, top=None
-            )
-            logger.info(f"[DnsService] Loaded {len(raw)} raw records from Azure")
+            # OPTIMIZED SEARCH: Load records in chunks and search in name AND value
+            # Stop early once we have enough matches
+            logger.info("[DnsService] Using optimized search mode - loading records in chunks")
             term = search_suffix.lower()
-            raw = [rs for rs in raw if term in (rs.name or "").lower()]
-            logger.info(f"[DnsService] After search filter: {len(raw)} records")
-            is_limited = len(raw) > top
-            raw = raw[:top]
+            matched_records = []
+            page = 0
+            max_pages = 10  # Limit to 10 pages (10,000 records max)
+            
+            while len(matched_records) < top and page < max_pages:
+                # Load one chunk (1000 records)
+                chunk = executor.list_zone_records(
+                    self._client, resource_group, zone, top=AZURE_MAX_LIMIT
+                )
+                logger.info(f"[DnsService] Page {page+1}: Loaded {len(chunk)} records")
+                
+                if not chunk:
+                    break  # No more records
+                
+                # Filter this chunk by searching in name AND value
+                for rs in chunk:
+                    # Search in record name
+                    name_match = term in (rs.name or "").lower()
+                    
+                    # Search in record values
+                    value_match = False
+                    rt = (rs.type or "").split("/")[-1]
+                    
+                    if rt == "A" and rs.a_records:
+                        value_match = any(term in (r.ipv4_address or "").lower() for r in rs.a_records)
+                    elif rt == "AAAA" and rs.aaaa_records:
+                        value_match = any(term in (r.ipv6_address or "").lower() for r in rs.aaaa_records)
+                    elif rt == "CNAME" and rs.cname_record:
+                        value_match = term in (rs.cname_record.cname or "").lower()
+                    elif rt == "TXT" and rs.txt_records:
+                        for txt_rec in rs.txt_records:
+                            if any(term in (v or "").lower() for v in (txt_rec.value or [])):
+                                value_match = True
+                                break
+                    
+                    if name_match or value_match:
+                        matched_records.append(rs)
+                        if len(matched_records) >= top:
+                            break  # Found enough matches
+                
+                # If we got less than max, we've reached the end
+                if len(chunk) < AZURE_MAX_LIMIT:
+                    break
+                
+                page += 1
+            
+            logger.info(f"[DnsService] Search complete: {len(matched_records)} matches found after {page+1} pages")
+            is_limited = len(matched_records) >= top or page >= max_pages
+            raw = matched_records[:top]
         else:
             # Cap at Azure's maximum limit of 1000
             fetch_top = min(top + 1, AZURE_MAX_LIMIT)

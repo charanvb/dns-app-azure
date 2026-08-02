@@ -95,23 +95,35 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, err
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <Input
           type="text"
-          placeholder="Search records to delete (min 2 chars for server-side search)..."
+          placeholder="Search by name or value (min 2 chars)..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {showSearchPrompt && (
         <Alert variant="info">
-          Type at least 2 characters to search across all available records.
+          Type at least 2 characters to search across all records (name and value).
         </Alert>
       )}
 
       {searchLoading && (
         <div className="flex items-center justify-center py-8">
           <LoadingSpinner size="md" />
-          <span className="ml-3 text-gray-600">Searching across all records...</span>
+          <div className="ml-3">
+            <p className="text-gray-600 font-medium">Searching for "{debouncedSearch}"...</p>
+            <p className="text-sm text-gray-500">Searching in names and values (this may take a moment for large zones)</p>
+          </div>
         </div>
       )}
 
