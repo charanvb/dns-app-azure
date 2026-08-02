@@ -93,7 +93,8 @@ def create_or_update_record(
                 values = json.loads(value) if value.lstrip().startswith("[") else [value]
             except Exception:
                 values = [value]
-        rs.txt_records = [TxtRecord(value=[str(v) for v in values if str(v).strip()])]
+        # Create separate TxtRecord for each value (Azure displays each as separate row)
+        rs.txt_records = [TxtRecord(value=[v]) for v in values if v.strip()]
     elif rt == "MX":
         # Parse "priority exchange" format
         parts = value.strip().split(None, 1)
