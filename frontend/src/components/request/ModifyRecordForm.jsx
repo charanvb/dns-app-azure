@@ -63,7 +63,16 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
 
     // Pass valid records to parent - convert to standard format
     const valid = updated
-      .filter((r) => r.newValue && r.newValue !== r.currentValue)
+      .filter((r) => {
+        if (r.type === 'TXT') {
+          // For TXT: check if txtValues has content and is different from current
+          const newValue = r.txtValues.filter(v => v.trim()).join('|');
+          return newValue && newValue !== r.currentValue;
+        } else {
+          // For other types: check newValue
+          return r.newValue && r.newValue !== r.currentValue;
+        }
+      })
       .map(r => {
         let finalValue = r.newValue;
         if (r.type === 'TXT') {
@@ -84,6 +93,8 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     const updated = [...stagedRecords];
     updated[index].txtValues = [...updated[index].txtValues, ''];
     setStagedRecords(updated);
+    // Trigger validation after adding value
+    updateStagedRecord(index, 'txtValues', updated[index].txtValues);
   };
 
   const removeTxtValue = (recordIndex, valueIndex) => {
@@ -122,7 +133,16 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     
     // Pass valid records to parent - convert to standard format
     const valid = updated
-      .filter((r) => r.newValue && r.newValue !== r.currentValue)
+      .filter((r) => {
+        if (r.type === 'TXT') {
+          // For TXT: check if txtValues has content and is different from current
+          const newValue = r.txtValues.filter(v => v.trim()).join('|');
+          return newValue && newValue !== r.currentValue;
+        } else {
+          // For other types: check newValue
+          return r.newValue && r.newValue !== r.currentValue;
+        }
+      })
       .map(r => {
         let finalValue = r.newValue;
         if (r.type === 'TXT') {

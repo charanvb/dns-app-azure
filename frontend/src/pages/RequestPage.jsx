@@ -268,8 +268,10 @@ export default function RequestPage() {
                 </span>
               </div>
 
+              {/* Forms maintain state across step changes via key prop */}
               {selectedAction === 'create' && (
                 <CreateRecordForm
+                  key={`create-${selectedZone}`}
                   zone={selectedZone}
                   existingRecords={existingRecords?.records || []}
                   onRecordsChange={setRecordsToSubmit}
@@ -278,6 +280,7 @@ export default function RequestPage() {
 
               {selectedAction === 'modify' && (
                 <ModifyRecordForm
+                  key={`modify-${selectedZone}`}
                   zone={selectedZone}
                   existingRecords={existingRecords?.records || []}
                   isLoading={recordsLoading}
@@ -288,6 +291,7 @@ export default function RequestPage() {
 
               {selectedAction === 'delete' && (
                 <DeleteRecordForm
+                  key={`delete-${selectedZone}`}
                   zone={selectedZone}
                   existingRecords={existingRecords?.records || []}
                   isLoading={recordsLoading}
