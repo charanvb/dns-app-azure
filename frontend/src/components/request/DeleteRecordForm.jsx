@@ -203,7 +203,7 @@ export default function DeleteRecordForm({ zone, existingRecords, isLoading, err
             </Alert>
           )}
         </>
-      )}
+      ) : null}
     </div>
   );
 }
