@@ -1,5 +1,8 @@
 # Builds the Docker image (React + FastAPI), pushes to ACR, and updates the Container App.
-# Triggers on every push to main. Run infra.yml at least once before the first deploy.
+# Branch-based deployment:
+#   - Push to main → Deploy to PRODUCTION (bnlwe-fs01-n-00000-dns-ca)
+#   - Push to develop → Deploy to DEVELOPMENT (bnlwe-fs01-n-00000-dns-ca-dev)
+# Run infra.yml at least once before the first deploy.
 #
 # Required secrets: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
 
@@ -9,6 +12,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - "app/**"
       - "frontend/**"
@@ -24,7 +28,6 @@ permissions:
 env:
   IMAGE_NAME: dns-portal
   ACR_NAME: bnlwecloudbauacr01
-  CONTAINER_APP_NAME: bnlwe-fs01-n-00000-dns-ca
   CONTAINER_APP_RG: bnlwe-fs01-n-00000-cloudbau-rg
 
 jobs:
@@ -35,6 +38,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set deployment target based on branch
+        id: target
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "CONTAINER_APP_NAME=bnlwe-fs01-n-00000-dns-ca" >> $GITHUB_ENV
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+            echo "APP_VERSION=2.0.0" >> $GITHUB_ENV
+            echo "🎯 Deploying to PRODUCTION"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "CONTAINER_APP_NAME=bnlwe-fs01-n-00000-dns-ca-dev" >> $GITHUB_ENV
+            echo "ENVIRONMENT=development" >> $GITHUB_ENV
+            echo "APP_VERSION=2.0.0-dev" >> $GITHUB_ENV
+            echo "🎯 Deploying to DEVELOPMENT"
+          else
+            echo "❌ Unknown branch: ${{ github.ref }}"
+            exit 1
+          fi
 
       - name: Login to Azure
         run: |
@@ -67,6 +88,7 @@ jobs:
       - name: Deploy to Container Apps
         run: |
           # Update with new image and ensure proper resource allocation for 12k zones
+          echo "Deploying to: $CONTAINER_APP_NAME ($ENVIRONMENT)"
           az containerapp update \
             --name "$CONTAINER_APP_NAME" \
             --resource-group "$CONTAINER_APP_RG" \
@@ -75,8 +97,8 @@ jobs:
             --memory 1.0Gi \
             --set-env-vars \
               "APP_NAME=Azure DNS Portal" \
-              "APP_VERSION=2.0.0" \
-              "ENVIRONMENT=production"
+              "APP_VERSION=$APP_VERSION" \
+              "ENVIRONMENT=$ENVIRONMENT"
 
       - name: Verify deployment
         run: |
@@ -88,6 +110,8 @@ jobs:
             -o tsv)
           
           echo "🚀 Deployment complete!"
+          echo "Environment: $ENVIRONMENT"
+          echo "Container App: $CONTAINER_APP_NAME"
           echo "App URL: https://$APP_URL"
           echo "Health check: https://$APP_URL/api/health"
           

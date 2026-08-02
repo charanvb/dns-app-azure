@@ -27,6 +27,12 @@ variable "container_app_name" {
   default     = "bnlwe-fs01-n-00000-dns-ca"
 }
 
+variable "container_app_dev_name" {
+  description = "Development Container App resource name."
+  type        = string
+  default     = "bnlwe-fs01-n-00000-dns-ca-dev"
+}
+
 variable "initial_image" {
   description = "Placeholder image used only on first Terraform apply; replaced by CI."
   type        = string
