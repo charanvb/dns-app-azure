@@ -9,6 +9,41 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
   const [selectedRecords, setSelectedRecords] = useState([]);
   const [stagedRecords, setStagedRecords] = useState([]);
 
+  // Validate and notify parent whenever staged records change
+  useEffect(() => {
+    if (stagedRecords.length === 0) {
+      onRecordsChange([]);
+      return;
+    }
+
+    const valid = stagedRecords
+      .filter((r) => {
+        if (r.type === 'TXT') {
+          // For TXT: check if txtValues has content and is different from current
+          const newValue = r.txtValues.filter(v => v.trim()).join('|');
+          return newValue && newValue !== r.currentValue;
+        } else {
+          // For other types: check newValue
+          return r.newValue && r.newValue !== r.currentValue;
+        }
+      })
+      .map(r => {
+        let finalValue = r.newValue;
+        if (r.type === 'TXT') {
+          finalValue = r.txtValues.filter(v => v.trim()).join('|');
+        }
+        return {
+          type: r.type,
+          label: r.label,
+          value: finalValue,
+          ttl: r.ttl
+        };
+      });
+    
+    onRecordsChange(valid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stagedRecords]); // Only depend on stagedRecords to avoid infinite loops
+
   const filteredRecords = existingRecords.filter((record) => {
     const fqdn = record.name === '@' ? zone : `${record.name}.${zone}`;
     return `${fqdn} ${record.type} ${record.value}`.toLowerCase().includes(searchQuery.toLowerCase());
@@ -36,16 +71,19 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     const staged = selectedRecords.map((record) => {
       // For TXT records, split pipe-separated values into array
       let txtValues = [];
+      let normalizedCurrentValue = record.value;
+      
       if (record.type === 'TXT') {
-        txtValues = record.value.includes('|') 
-          ? record.value.split('|').map(v => v.trim()).filter(v => v)
-          : [record.value];
+        // Split by | (with or without spaces) and trim each value
+        txtValues = record.value.split('|').map(v => v.trim()).filter(v => v);
+        // Normalize current value to match the format we'll use for comparison
+        normalizedCurrentValue = txtValues.join('|');
       }
 
       return {
         type: record.type,
         label: record.name,
-        currentValue: record.value,
+        currentValue: normalizedCurrentValue,
         newValue: record.type === 'TXT' ? '' : record.value,
         txtValues: record.type === 'TXT' ? [...txtValues] : [],
         ttl: record.ttl || 300,
@@ -60,48 +98,21 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     const updated = [...stagedRecords];
     updated[index] = { ...updated[index], [field]: value };
     setStagedRecords(updated);
-
-    // Pass valid records to parent - convert to standard format
-    const valid = updated
-      .filter((r) => {
-        if (r.type === 'TXT') {
-          // For TXT: check if txtValues has content and is different from current
-          const newValue = r.txtValues.filter(v => v.trim()).join('|');
-          return newValue && newValue !== r.currentValue;
-        } else {
-          // For other types: check newValue
-          return r.newValue && r.newValue !== r.currentValue;
-        }
-      })
-      .map(r => {
-        let finalValue = r.newValue;
-        if (r.type === 'TXT') {
-          finalValue = r.txtValues.filter(v => v.trim()).join('|');
-        }
-        return {
-          type: r.type,
-          label: r.label,
-          value: finalValue,
-          ttl: r.ttl
-        };
-      });
-    
-    onRecordsChange(valid);
+    // useEffect will handle validation and calling onRecordsChange
   };
 
   const addTxtValue = (index) => {
     const updated = [...stagedRecords];
     updated[index].txtValues = [...updated[index].txtValues, ''];
     setStagedRecords(updated);
-    // Trigger validation after adding value
-    updateStagedRecord(index, 'txtValues', updated[index].txtValues);
+    // useEffect will handle validation
   };
 
   const removeTxtValue = (recordIndex, valueIndex) => {
     const updated = [...stagedRecords];
     updated[recordIndex].txtValues = updated[recordIndex].txtValues.filter((_, i) => i !== valueIndex);
     setStagedRecords(updated);
-    updateStagedRecord(recordIndex, 'txtValues', updated[recordIndex].txtValues);
+    // useEffect will handle validation
   };
 
   const updateTxtValue = (recordIndex, valueIndex, value) => {
@@ -124,39 +135,13 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     
     updated[recordIndex].txtValues[valueIndex] = value;
     setStagedRecords(updated);
-    updateStagedRecord(recordIndex, 'txtValues', updated[recordIndex].txtValues);
+    // useEffect will handle validation
   };
 
   const removeStagedRecord = (index) => {
     const updated = stagedRecords.filter((_, i) => i !== index);
     setStagedRecords(updated);
-    
-    // Pass valid records to parent - convert to standard format
-    const valid = updated
-      .filter((r) => {
-        if (r.type === 'TXT') {
-          // For TXT: check if txtValues has content and is different from current
-          const newValue = r.txtValues.filter(v => v.trim()).join('|');
-          return newValue && newValue !== r.currentValue;
-        } else {
-          // For other types: check newValue
-          return r.newValue && r.newValue !== r.currentValue;
-        }
-      })
-      .map(r => {
-        let finalValue = r.newValue;
-        if (r.type === 'TXT') {
-          finalValue = r.txtValues.filter(v => v.trim()).join('|');
-        }
-        return {
-          type: r.type,
-          label: r.label,
-          value: finalValue,
-          ttl: r.ttl
-        };
-      });
-    
-    onRecordsChange(valid);
+    // useEffect will handle validation
   };
 
   if (isLoading) {
