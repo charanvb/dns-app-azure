@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, X } from 'lucide-react';
 import Input from '../shared/Input';
 import Button from '../shared/Button';
 import LoadingSpinner from '../shared/LoadingSpinner';
