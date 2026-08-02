@@ -21,7 +21,10 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
         if (r.type === 'TXT') {
           // For TXT: check if txtValues has content and is different from current
           const newValue = r.txtValues.filter(v => v.trim()).join('|');
-          return newValue && newValue !== r.currentValue;
+          // Normalize both values by removing all spaces for comparison
+          const normalizedNew = newValue.replace(/\s/g, '');
+          const normalizedCurrent = (r.currentValue || '').replace(/\s/g, '');
+          return newValue && normalizedNew !== normalizedCurrent;
         } else {
           // For other types: check newValue
           return r.newValue && r.newValue !== r.currentValue;
@@ -71,19 +74,16 @@ export default function ModifyRecordForm({ zone, existingRecords, isLoading, err
     const staged = selectedRecords.map((record) => {
       // For TXT records, split pipe-separated values into array
       let txtValues = [];
-      let normalizedCurrentValue = record.value;
       
       if (record.type === 'TXT') {
         // Split by | (with or without spaces) and trim each value
         txtValues = record.value.split('|').map(v => v.trim()).filter(v => v);
-        // Normalize current value to match the format we'll use for comparison
-        normalizedCurrentValue = txtValues.join('|');
       }
 
       return {
         type: record.type,
         label: record.name,
-        currentValue: normalizedCurrentValue,
+        currentValue: record.value, // Keep original value as-is from Azure
         newValue: record.type === 'TXT' ? '' : record.value,
         txtValues: record.type === 'TXT' ? [...txtValues] : [],
         ttl: record.ttl || 300,
