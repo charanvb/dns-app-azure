@@ -30,7 +30,7 @@ resource "azurerm_linux_web_app" "main" {
   location            = data.azurerm_resource_group.main.location
   service_plan_id     = azurerm_service_plan.main.id
 
-  # System-assigned managed identity (for ACR, Blob Storage, DNS access)
+  # System-assigned managed identity (for Blob Storage, DNS access)
   identity {
     type = "SystemAssigned"
   }
@@ -83,40 +83,10 @@ resource "azurerm_linux_web_app" "main" {
   }
 
   lifecycle {
-    # GitHub Actions will update the docker image
-    ignore_changes = [
-      site_config[0].application_stack[0].docker_image_name,
-      tags,
-    ]
+    # Ignore tags managed by organization policy
+    ignore_changes = [tags]
   }
 }
-
-# ── ACR Pull Permission ───────────────────────────────────────────────────────
-
-# Grant App Service managed identity permission to pull images from ACR
-resource "azurerm_role_assignment" "webapp_acr_pull" {
-  scope                = azurerm_container_registry.main.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_linux_web_app.main.identity[0].principal_id
-}
-
-# ── Deployment Slot (Optional - Commented Out) ────────────────────────────────
-
-# Deployment slots require Standard (S1) tier or higher
-# Uncomment when ready to use blue-green deployments
-#
-# resource "azurerm_linux_web_app_slot" "staging" {
-#   name           = "staging"
-#   app_service_id = azurerm_linux_web_app.main.id
-#
-#   site_config {
-#     always_on = true
-#     application_stack {
-#       docker_image_name   = "${azurerm_container_registry.main.login_server}/dns-portal:latest"
-#       docker_registry_url = "https://${azurerm_container_registry.main.login_server}"
-#     }
-#   }
-# }
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Notes:
@@ -126,14 +96,11 @@ resource "azurerm_role_assignment" "webapp_acr_pull" {
 #    - App Service → Networking → VNet Integration → Add VNet
 #    - Or add via Terraform with azurerm_app_service_virtual_network_swift_connection
 #
-# 2. ACR Authentication:
-#    App Service uses managed identity to pull images from ACR (no password needed)
-#
-# 3. Scaling:
+# 2. Scaling:
 #    B1 tier: Manual scale (1-3 instances)
 #    Upgrade to S1+ for autoscaling
 #
-# 4. Deployment:
-#    GitHub Actions will update docker_image_name via:
-#    az webapp config container set --docker-custom-image-name ...
+# 3. Deployment:
+#    Deploy Python code via: az webapp up --runtime "PYTHON:3.12"
+#    Or connect to GitHub for automatic deployments
 # ══════════════════════════════════════════════════════════════════════════════

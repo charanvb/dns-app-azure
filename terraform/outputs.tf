@@ -1,8 +1,3 @@
-output "acr_login_server" {
-  description = "ACR login server — use as image prefix in deploy.yml."
-  value       = azurerm_container_registry.main.login_server
-}
-
 # ── App Service Outputs ───────────────────────────────────────────────────────
 
 output "app_service_url" {

@@ -9,12 +9,6 @@ variable "resource_group_name" {
   default     = "bnlwe-fs01-n-00000-cloudbau-rg"
 }
 
-variable "acr_name" {
-  description = "Azure Container Registry name (globally unique, alphanumeric only)."
-  type        = string
-  default     = "bnlwecloudbauacr01"
-}
-
 variable "dns_subscription_id" {
   description = "Subscription ID containing the DNS zones."
   type        = string
