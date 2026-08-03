@@ -38,7 +38,6 @@ resource "azurerm_linux_web_app" "main" {
   # Application settings (environment variables)
   app_settings = {
     "WEBSITES_PORT"                       = "8000"  # FastAPI runs on port 8000
-    "DOCKER_REGISTRY_SERVER_URL"          = "https://${azurerm_container_registry.main.login_server}"
     "DOCKER_ENABLE_CI"                    = "true"
     "ENVIRONMENT"                         = "production"
     "DNS_SUBSCRIPTION_ID"                 = var.dns_subscription_id
@@ -47,6 +46,9 @@ resource "azurerm_linux_web_app" "main" {
     "APP_VERSION"                         = "2.0.0"
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
   }
+  
+  # Docker registry authentication using managed identity (configured separately)
+  # Azure App Service automatically uses the managed identity to authenticate to ACR
 
   # Docker configuration
   site_config {
@@ -61,8 +63,9 @@ resource "azurerm_linux_web_app" "main" {
       docker_registry_url = "https://${azurerm_container_registry.main.login_server}"
     }
 
-    # Health check (optional but recommended)
-    health_check_path = "/api/health"
+    # Health check configuration
+    health_check_path                 = "/api/health"
+    health_check_eviction_time_in_min = 10  # Time before unhealthy instance is removed
   }
 
   # HTTPS only (security best practice)
