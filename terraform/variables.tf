@@ -15,24 +15,6 @@ variable "acr_name" {
   default     = "bnlwecloudbauacr01"
 }
 
-variable "container_app_env_name" {
-  description = "Container Apps managed environment name."
-  type        = string
-  default     = "bnlwe-fs01-n-00000-dns-cae"
-}
-
-variable "container_app_name" {
-  description = "Container App resource name."
-  type        = string
-  default     = "bnlwe-fs01-n-00000-dns-ca"
-}
-
-variable "initial_image" {
-  description = "Placeholder image used only on first Terraform apply; replaced by CI."
-  type        = string
-  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-}
-
 variable "dns_subscription_id" {
   description = "Subscription ID containing the DNS zones."
   type        = string

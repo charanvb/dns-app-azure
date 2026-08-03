@@ -3,16 +3,6 @@ output "acr_login_server" {
   value       = azurerm_container_registry.main.login_server
 }
 
-output "container_app_fqdn" {
-  description = "Public HTTPS URL of the Production Container App."
-  value       = "https://${azurerm_container_app.main.ingress[0].fqdn}"
-}
-
-output "container_app_name" {
-  description = "Production Container App resource name."
-  value       = azurerm_container_app.main.name
-}
-
 # ── App Service Outputs ───────────────────────────────────────────────────────
 
 output "app_service_url" {

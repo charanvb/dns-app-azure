@@ -58,9 +58,10 @@ resource "azurerm_linux_web_app" "main" {
     minimum_tls_version    = "1.2"       # Security: TLS 1.2+
     
     # Container settings
+    # When using managed identity for ACR authentication, only specify docker_image_name
+    # The registry URL is automatically handled via the role assignment
     application_stack {
       docker_image_name   = "${azurerm_container_registry.main.login_server}/dns-portal:latest"
-      docker_registry_url = "https://${azurerm_container_registry.main.login_server}"
     }
 
     # Health check configuration
