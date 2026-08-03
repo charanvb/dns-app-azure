@@ -37,32 +37,29 @@ resource "azurerm_linux_web_app" "main" {
 
   # Application settings (environment variables)
   app_settings = {
-    "WEBSITES_PORT"                       = "8000"  # FastAPI runs on port 8000
-    "DOCKER_ENABLE_CI"                    = "true"
     "ENVIRONMENT"                         = "production"
     "DNS_SUBSCRIPTION_ID"                 = var.dns_subscription_id
     "DNS_RESOURCE_GROUP"                  = var.dns_resource_group
     "APP_NAME"                            = "Azure DNS Portal"
     "APP_VERSION"                         = "2.0.0"
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
+    "SCM_DO_BUILD_DURING_DEPLOYMENT"      = "true"  # Build during deployment
+    "ENABLE_ORYX_BUILD"                   = "true"  # Enable Oryx build system
   }
-  
-  # Docker registry authentication using managed identity (configured separately)
-  # Azure App Service automatically uses the managed identity to authenticate to ACR
 
-  # Docker configuration
+  # Python direct deployment configuration (NO Docker!)
   site_config {
     always_on              = true  # Keep app always running (required for B1 tier)
     http2_enabled          = true
     ftps_state             = "Disabled"  # Security: disable FTP
     minimum_tls_version    = "1.2"       # Security: TLS 1.2+
     
-    # Container settings
-    # When using managed identity for ACR authentication, only specify docker_image_name
-    # The registry URL is automatically handled via the role assignment
+    # Python application stack
     application_stack {
-      docker_image_name   = "${azurerm_container_registry.main.login_server}/dns-portal:latest"
+      python_version = "3.12"  # Match your Dockerfile version
     }
+
+    # Startup command
+    app_command_line = "bash startup.sh"
 
     # Health check configuration
     health_check_path                 = "/api/health"
