@@ -58,8 +58,8 @@ resource "azurerm_linux_web_app" "main" {
       python_version = "3.12"  # Match your Dockerfile version
     }
 
-    # Startup command
-    app_command_line = "bash startup.sh"
+    # Startup command - Gunicorn with Uvicorn worker for FastAPI
+    app_command_line = "gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind=0.0.0.0:8000"
 
     # Health check configuration
     health_check_path                 = "/api/health"
