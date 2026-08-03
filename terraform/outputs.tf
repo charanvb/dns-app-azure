@@ -13,19 +13,26 @@ output "container_app_name" {
   value       = azurerm_container_app.main.name
 }
 
-output "container_app_dev_fqdn" {
-  description = "Public HTTPS URL of the Development Container App."
-  value       = "https://${azurerm_container_app.dev.ingress[0].fqdn}"
+# ── App Service Outputs ───────────────────────────────────────────────────────
+
+output "app_service_url" {
+  description = "Public HTTPS URL of the App Service."
+  value       = "https://${azurerm_linux_web_app.main.default_hostname}"
 }
 
-output "container_app_dev_name" {
-  description = "Development Container App resource name."
-  value       = azurerm_container_app.dev.name
+output "app_service_name" {
+  description = "App Service resource name."
+  value       = azurerm_linux_web_app.main.name
 }
 
-output "container_app_dev_principal_id" {
-  description = "Development Container App Managed Identity Principal ID (for DNS role assignment)."
-  value       = azurerm_container_app.dev.identity[0].principal_id
+output "app_service_principal_id" {
+  description = "App Service Managed Identity Principal ID (for DNS role assignment)."
+  value       = azurerm_linux_web_app.main.identity[0].principal_id
+}
+
+output "app_service_plan_name" {
+  description = "App Service Plan name."
+  value       = azurerm_service_plan.main.name
 }
 
 
