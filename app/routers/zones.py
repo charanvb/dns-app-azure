@@ -1,10 +1,12 @@
 """DNS zones router."""
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.auth.dependencies import get_current_user
 from app.config import settings
+from app.models import User
 from app.services.dns_service import DnsService
 
 router = APIRouter(tags=["Web UI"])
@@ -17,6 +19,7 @@ async def zones_page(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(50, ge=10, le=200, description="Zones per page"),
     search: str = Query(None, description="Search zone names"),
+    user: User = Depends(get_current_user),
 ) -> HTMLResponse:
     """Render the DNS zones page with pagination."""
     try:
@@ -57,6 +60,7 @@ async def zones_page(
                 "showing_end": start_idx + len(zones),
                 "has_more": has_more,
                 "search": search or "",
+                "user": user,
             },
         )
     except Exception as e:
@@ -68,6 +72,7 @@ async def zones_page(
                 "app_version": settings.app_version,
                 "environment": settings.environment,
                 "error": str(e),
+                "user": user,
             },
         )
 

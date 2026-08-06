@@ -142,9 +142,16 @@
             <a class="navbar-brand" href="/">
                 <i class="bi bi-globe2"></i> {{ app_name }}
             </a>
-            <span class="navbar-text text-white-50 ms-auto">
+            <span class="navbar-text text-white-50 ms-auto me-3">
                 <small>{{ environment | upper }} | v{{ app_version }}</small>
             </span>
+            {% if user %}
+            <span class="navbar-text text-white">
+                <i class="bi bi-person-circle"></i> {{ user.username }}
+                <small class="text-white-50">({{ user.role.value }})</small>
+                <a href="/logout" class="text-white-50 ms-2"><i class="bi bi-box-arrow-right"></i> Sign out</a>
+            </span>
+            {% endif %}
         </div>
     </nav>
 

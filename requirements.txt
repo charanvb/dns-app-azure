@@ -7,3 +7,20 @@ python-multipart==0.0.12
 azure-identity==1.19.0
 azure-mgmt-dns==8.0.0
 six==1.16.0
+
+# Database (isolated Postgres DB — see db/provision_dns_selfservice_db.sql)
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# Local auth (pre-SSO)
+passlib==1.7.4
+bcrypt==4.0.1
+itsdangerous==2.2.0
+
+# Email (Logic App HTTP trigger) + background polling worker
+httpx==0.28.1
+apscheduler==3.10.4
+
+# CI test job only (not used at runtime)
+pytest==8.3.3

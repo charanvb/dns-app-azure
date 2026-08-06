@@ -3,9 +3,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.auth.middleware import LoginRequiredMiddleware
 from app.config import settings
-from app.routers import home, health, zones, requests
+from app.routers import auth, home, health, zones, requests
 
 
 def create_app() -> FastAPI:
@@ -19,11 +21,12 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
-    # Add CORS middleware
+    # Same-origin, server-rendered app — no cross-origin credentialed requests needed.
+    # (allow_origins="*" + allow_credentials=True is an invalid/insecure combination.)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -31,7 +34,18 @@ def create_app() -> FastAPI:
     # Add Gzip compression
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+    # Login gate must run *inside* SessionMiddleware so request.session is populated
+    # first. Middleware added later wraps outer, so add this before SessionMiddleware.
+    app.add_middleware(LoginRequiredMiddleware)
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.session_secret_key,
+        same_site="lax",
+        https_only=(settings.environment == "production"),
+    )
+
     # Include routers
+    app.include_router(auth.router)
     app.include_router(home.router)
     app.include_router(health.router)
     app.include_router(zones.router)
@@ -41,3 +55,4 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
