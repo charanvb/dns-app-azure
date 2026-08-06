@@ -33,6 +33,7 @@ async def zones_page(
         
         # Pagination
         total_zones = len(all_zones)
+        total_pages = (total_zones + per_page - 1) // per_page  # Ceiling division
         start_idx = (page - 1) * per_page
         end_idx = start_idx + per_page
         zones = all_zones[start_idx:end_idx]
@@ -51,6 +52,7 @@ async def zones_page(
                 "page": page,
                 "per_page": per_page,
                 "total_zones": total_zones,
+                "total_pages": total_pages,
                 "showing_start": start_idx + 1 if zones else 0,
                 "showing_end": start_idx + len(zones),
                 "has_more": has_more,

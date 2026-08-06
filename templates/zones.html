@@ -47,38 +47,50 @@
         <i class="bi bi-info-circle-fill me-2"></i>
         Showing zones <strong>{{ showing_start }}</strong> - <strong>{{ showing_end }}</strong> of <strong>{{ total_zones }}</strong>
         {% if search %} (filtered by "{{ search }}"){% endif %}
-        <span class="text-muted ms-2">(Cached for 5 minutes for performance)</span>
+        <span class="text-muted ms-2">(Cached for 1 hour)</span>
     </div>
 
-    <!-- Zones Grid -->
-    <div class="row g-4" id="zonesGrid">
-        {% for zone in zones %}
-        <div class="col-lg-3 col-md-4 col-sm-6">
-            <div class="card h-100 zone-card" data-zone="{{ zone.name }}">
-                <div class="card-body p-3">
-                    <h6 class="card-title text-truncate mb-2" title="{{ zone.name }}">{{ zone.name }}</h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="badge bg-primary bg-opacity-10 text-primary small">{{ zone.zone_type }}</span>
-                        <div class="text-end">
-                            <small class="text-muted d-block">Records</small>
-                            <strong class="fs-6">{{ zone.record_set_count }}</strong>
-                        </div>
-                    </div>
-                    <button 
-                        class="btn btn-outline-primary btn-sm w-100 mt-3"
-                        onclick="loadZoneRecords('{{ zone.name }}', {{ zone.record_set_count }})"
-                    >
-                        <i class="bi bi-list-ul me-1"></i>View Records
-                    </button>
-                </div>
-            </div>
+    <!-- Zones List -->
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="px-4" style="width: 50%">
+                            <i class="bi bi-diagram-3 me-2"></i>Zone Name
+                        </th>
+                        <th class="text-center" style="width: 20%">
+                            <i class="bi bi-globe me-2"></i>Type
+                        </th>
+                        <th class="text-end px-4" style="width: 30%">
+                            <i class="bi bi-list-ul me-2"></i>Records
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for zone in zones %}
+                    <tr>
+                        <td class="px-4">
+                            <code class="text-dark fw-semibold">{{ zone.name }}</code>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-primary">{{ zone.zone_type }}</span>
+                        </td>
+                        <td class="text-end px-4">
+                            <span class="badge bg-secondary bg-opacity-10 text-dark fs-6 px-3 py-2">
+                                {{ zone.record_set_count }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-        {% endfor %}
     </div>
 
     <!-- Pagination -->
     {% if total_zones > per_page %}
-    <nav class="mt-5">
+    <nav class="mt-4">
         <ul class="pagination justify-content-center">
             {% if page > 1 %}
             <li class="page-item">
@@ -89,7 +101,7 @@
             {% endif %}
             
             <li class="page-item disabled">
-                <span class="page-link">Page {{ page }}</span>
+                <span class="page-link">Page {{ page }} of {{ total_pages }}</span>
             </li>
             
             {% if has_more %}
@@ -103,135 +115,6 @@
     </nav>
     {% endif %}
 
-    <!-- Zone Details Modal -->
-    <div class="modal fade" id="zoneModal" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold">
-                        <i class="bi bi-diagram-3 text-primary me-2"></i>
-                        <span id="modalZoneName"></span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Search Box -->
-                    <div class="row mb-3">
-                        <div class="col">
-                            <form id="searchForm" hx-get hx-target="#recordsContainer" hx-trigger="input changed delay:600ms from:#searchInput, submit">
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="bi bi-search"></i>
-                                    </span>
-                                    <input 
-                                        type="text" 
-                                        class="form-control" 
-                                        id="searchInput"
-                                        name="search"
-                                        placeholder="Search records..."
-                                        autocomplete="off"
-                                    >
-                                    <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </div>
-                                <small class="text-muted">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    Searches names & values. First 100 results shown.
-                                </small>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- Records Container -->
-                    <div id="recordsContainer">
-                        <div class="text-center py-5">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <p class="text-muted mt-3">Loading records...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     {% endif %}
 </div>
-
-<script>
-    let currentZone = '';
-    let currentRecordCount = 0;
-    const modal = new bootstrap.Modal(document.getElementById('zoneModal'));
-    
-    // Client-side cache for records (cleared on page reload)
-    const recordsCache = {};
-
-    function loadZoneRecords(zoneName, recordCount) {
-        currentZone = zoneName;
-        currentRecordCount = recordCount;
-        document.getElementById('modalZoneName').textContent = `${zoneName} (${recordCount} records)`;
-        document.getElementById('searchInput').value = '';
-        
-        // Set HTMX endpoint
-        const form = document.getElementById('searchForm');
-        form.setAttribute('hx-get', `/zones/${zoneName}/records?top=100`);
-        htmx.process(form);
-        
-        // Check cache first
-        if (recordsCache[zoneName]) {
-            document.getElementById('recordsContainer').innerHTML = recordsCache[zoneName];
-            modal.show();
-        } else {
-            // Show loading
-            document.getElementById('recordsContainer').innerHTML = `
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="text-muted mt-3">Loading ${recordCount} records... (first 100 shown)</p>
-                </div>
-            `;
-            
-            // Load from server
-            htmx.ajax('GET', `/zones/${zoneName}/records?top=100`, {
-                target: '#recordsContainer',
-                swap: 'innerHTML'
-            }).then(() => {
-                // Cache the result
-                recordsCache[zoneName] = document.getElementById('recordsContainer').innerHTML;
-            });
-            
-            modal.show();
-        }
-    }
-
-    function clearSearch() {
-        document.getElementById('searchInput').value = '';
-        // Load from cache if available
-        if (recordsCache[currentZone]) {
-            document.getElementById('recordsContainer').innerHTML = recordsCache[currentZone];
-        } else {
-            htmx.ajax('GET', `/zones/${currentZone}/records?top=100`, {
-                target: '#recordsContainer',
-                swap: 'innerHTML'
-            });
-        }
-    }
-    
-    // Add hover effect to zone cards
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.zone-card').forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-2px)';
-                this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            });
-            card.addEventListener('mouseleave', function() {
-                this.style.transform = '';
-                this.style.boxShadow = '';
-            });
-        });
-    });
-</script>
 {% endblock %}

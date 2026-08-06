@@ -31,10 +31,10 @@ class DnsRecord:
     raw_values: list = field(default_factory=list)  # individual TXT strings
 
 
-# Cache zones for 5 minutes (300 seconds) - helps with 12K zones performance
+# Cache zones for 1 hour (3600 seconds) - DNS zones don't change frequently
 @lru_cache(maxsize=10)
 def _get_cached_zones(subscription_id: str, resource_group: str, cache_key: int) -> list[DnsZone]:
-    """Internal cached zone fetcher. cache_key changes every 5 minutes."""
+    """Internal cached zone fetcher. cache_key changes every 1 hour."""
     client = DnsManagementClient(DefaultAzureCredential(), subscription_id)
     result = []
     for zone in client.zones.list_by_resource_group(resource_group):
