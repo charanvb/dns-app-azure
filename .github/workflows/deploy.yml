@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: bnlwe-fs01-n-00000-dns-webapp
+  AZURE_WEBAPP_NAME: bieno-fs01-n-00000-dns-webapp
   PYTHON_VERSION: '3.12'
 
 jobs:

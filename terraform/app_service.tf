@@ -8,9 +8,9 @@
 # ── App Service Plan ──────────────────────────────────────────────────────────
 
 resource "azurerm_service_plan" "main" {
-  name                = "bnlwe-fs01-n-00000-dns-plan"
+  name                = "bieno-fs01-n-00000-dns-plan"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = "North Europe"  # Moved from West Europe per approved bieno naming/region standard
   os_type             = "Linux"
   sku_name            = "B1"  # Basic B1: 1 vCPU, 1.75GB RAM, ~$13/month, includes VNet integration
 
@@ -25,9 +25,9 @@ resource "azurerm_service_plan" "main" {
 # ── Linux Web App (Docker Container) ──────────────────────────────────────────
 
 resource "azurerm_linux_web_app" "main" {
-  name                = "bnlwe-fs01-n-00000-dns-webapp"
+  name                = "bieno-fs01-n-00000-dns-webapp"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = azurerm_service_plan.main.location
   service_plan_id     = azurerm_service_plan.main.id
 
   # System-assigned managed identity (for Blob Storage, DNS access)
