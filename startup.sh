@@ -14,5 +14,5 @@ if [ "$ENVIRONMENT" != "production" ]; then
     python -m scripts.seed_users
 fi
 
-# Start FastAPI with uvicorn
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Start FastAPI via Gunicorn + Uvicorn workers (production-grade, matches App Service sizing)
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind=0.0.0.0:8000

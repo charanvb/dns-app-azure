@@ -37,11 +37,14 @@ resource "azurerm_linux_web_app" "main" {
 
   # Application settings (environment variables)
   app_settings = {
-    "ENVIRONMENT"                         = "production"
+    "ENVIRONMENT"                         = var.environment
     "DNS_SUBSCRIPTION_ID"                 = var.dns_subscription_id
     "DNS_RESOURCE_GROUP"                  = var.dns_resource_group
     "APP_NAME"                            = "Azure DNS Portal"
     "APP_VERSION"                         = "2.0.0"
+    "DATABASE_URL"                        = var.database_url
+    "SESSION_SECRET_KEY"                  = var.session_secret_key
+    "LOGIC_APP_EMAIL_URL"                 = var.logic_app_email_url
     "SCM_DO_BUILD_DURING_DEPLOYMENT"      = "true"  # Build during deployment
     "ENABLE_ORYX_BUILD"                   = "true"  # Enable Oryx build system
   }
@@ -58,8 +61,8 @@ resource "azurerm_linux_web_app" "main" {
       python_version = "3.12"  # Match your Dockerfile version
     }
 
-    # Startup command - Gunicorn with Uvicorn worker for FastAPI
-    app_command_line = "gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind=0.0.0.0:8000"
+    # Startup command - runs migrations/seeding (startup.sh) before serving via Gunicorn+Uvicorn workers
+    app_command_line = "bash startup.sh"
 
     # Health check configuration
     health_check_path                 = "/api/health"

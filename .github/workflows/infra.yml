@@ -32,6 +32,10 @@ env:
   ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  # TF_VAR_ vars are picked up automatically by Terraform (app_service.tf app_settings).
+  TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
+  TF_VAR_session_secret_key: ${{ secrets.SESSION_SECRET_KEY }}
+  TF_VAR_logic_app_email_url: ${{ secrets.LOGIC_APP_EMAIL_URL }}
 
 jobs:
   terraform:
