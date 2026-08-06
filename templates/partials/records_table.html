@@ -1,0 +1,72 @@
+<div id="recordsTableWrapper">
+    {% if records %}
+    <!-- Summary Bar -->
+    <div class="alert alert-info d-flex align-items-center mb-3">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        <div>
+            Showing <strong>{{ total_shown }}</strong> records
+            {% if search %}for search "<strong>{{ search }}</strong>"{% endif %}
+            {% if is_limited %}<span class="text-warning ms-2">(limited, refine search for more)</span>{% endif %}
+        </div>
+    </div>
+
+    <!-- Records Table -->
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 30%">Name</th>
+                    <th style="width: 10%">Type</th>
+                    <th style="width: 10%">TTL</th>
+                    <th style="width: 50%">Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr>
+                    <td>
+                        <code class="text-primary">{{ record.name or '@' }}</code>
+                    </td>
+                    <td>
+                        <span class="badge 
+                            {% if record.record_type == 'A' %}bg-primary
+                            {% elif record.record_type == 'AAAA' %}bg-info
+                            {% elif record.record_type == 'CNAME' %}bg-success
+                            {% elif record.record_type == 'TXT' %}bg-warning text-dark
+                            {% else %}bg-secondary{% endif %}">
+                            {{ record.record_type }}
+                        </span>
+                    </td>
+                    <td class="text-muted">{{ record.ttl }}</td>
+                    <td>
+                        {% if record.record_type == 'TXT' and record.raw_values %}
+                            <!-- TXT records: show each value on its own line -->
+                            {% for txt_value in record.raw_values %}
+                            <div class="font-monospace small text-break mb-1">
+                                <i class="bi bi-quote text-muted"></i> {{ txt_value }}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <code class="text-break">{{ record.value }}</code>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <!-- No Results -->
+    <div class="alert alert-warning text-center py-5">
+        <i class="bi bi-search" style="font-size: 3rem;"></i>
+        <h5 class="mt-3">No records found</h5>
+        <p class="text-muted mb-0">
+            {% if search %}
+            Try a different search term or clear the search to see all records.
+            {% else %}
+            This zone has no records to display.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>
