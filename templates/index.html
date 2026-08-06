@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-5 fw-bold">Azure DNS Portal</h1>
+            <p class="text-muted">Manage DNS zones and records with confidence</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- DNS Zones Card -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-diagram-3 text-primary" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="card-title mb-0">DNS Zones</h5>
+                            <p class="text-muted small mb-0">Browse and search</p>
+                        </div>
+                    </div>
+                    <p class="card-text">View all DNS zones in your Azure subscription and search through records.</p>
+                    <a href="/zones" class="btn btn-primary w-100">
+                        <i class="bi bi-arrow-right-circle"></i> Browse Zones
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Request Card -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-plus-circle text-success" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="card-title mb-0">New Request</h5>
+                            <p class="text-muted small mb-0">Create, update, delete</p>
+                        </div>
+                    </div>
+                    <p class="card-text">Submit requests to create, modify, or delete DNS records.</p>
+                    <a href="/request" class="btn btn-success w-100">
+                        <i class="bi bi-plus-lg"></i> New Request
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status Card -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-heart-pulse text-danger" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="card-title mb-0">System Status</h5>
+                            <p class="text-muted small mb-0">Health & diagnostics</p>
+                        </div>
+                    </div>
+                    <div id="health-status" hx-get="/api/health" hx-trigger="load, every 30s" hx-swap="innerHTML">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mt-5">
+        <div class="col">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Supported Record Types</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded">
+                                <h2 class="text-primary mb-0">A</h2>
+                                <small class="text-muted">IPv4 Address</small>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded">
+                                <h2 class="text-primary mb-0">AAAA</h2>
+                                <small class="text-muted">IPv6 Address</small>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded">
+                                <h2 class="text-primary mb-0">CNAME</h2>
+                                <small class="text-muted">Canonical Name</small>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded">
+                                <h2 class="text-primary mb-0">TXT</h2>
+                                <small class="text-muted">Text Record</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Format health check response
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === 'health-status') {
+            try {
+                const data = JSON.parse(event.target.textContent);
+                const html = `
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-check-circle-fill"></i> <strong>${data.status}</strong>
+                        <div class="small mt-2">
+                            <div>Version: ${data.version}</div>
+                            <div>Environment: ${data.environment}</div>
+                        </div>
+                    </div>
+                `;
+                event.target.innerHTML = html;
+            } catch (e) {
+                event.target.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle-fill"></i> Error loading status</div>';
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,4 +1,4 @@
-name: Deploy Python App to Azure App Service
+name: Deploy to Azure App Service
 
 on:
   push:
@@ -12,7 +12,6 @@ on:
 env:
   AZURE_WEBAPP_NAME: bnlwe-fs01-n-00000-dns-webapp
   PYTHON_VERSION: '3.12'
-  NODE_VERSION: '22'
 
 jobs:
   deploy:
@@ -22,25 +21,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-
-    - name: Build React frontend
-      run: |
-        cd frontend
-        npm install
-        npm run build
-        echo "✅ React app built successfully"
-        ls -la dist/
-
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install Python dependencies (for validation)
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
