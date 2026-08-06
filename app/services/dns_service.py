@@ -1,6 +1,8 @@
 """DNS management service — thin wrapper over dns_engine for the web app."""
 
 from dataclasses import dataclass, field
+from functools import lru_cache
+from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.dns import DnsManagementClient
@@ -29,6 +31,24 @@ class DnsRecord:
     raw_values: list = field(default_factory=list)  # individual TXT strings
 
 
+# Cache zones for 5 minutes (300 seconds) - helps with 12K zones performance
+@lru_cache(maxsize=10)
+def _get_cached_zones(subscription_id: str, resource_group: str, cache_key: int) -> list[DnsZone]:
+    """Internal cached zone fetcher. cache_key changes every 5 minutes."""
+    client = DnsManagementClient(DefaultAzureCredential(), subscription_id)
+    result = []
+    for zone in client.zones.list_by_resource_group(resource_group):
+        zt = zone.zone_type
+        zone_type = zt.value if hasattr(zt, "value") else (str(zt) if zt else "Public")
+        result.append(DnsZone(
+            name=zone.name,
+            resource_group=zone.id.split("/")[4],
+            zone_type=zone_type,
+            record_set_count=zone.number_of_record_sets or 0,
+        ))
+    return result
+
+
 class DnsService:
     """Public API for DNS operations used by the web app.
 
@@ -38,25 +58,21 @@ class DnsService:
     def __init__(self, subscription_id: str) -> None:
         if not subscription_id:
             raise ValueError("DNS_SUBSCRIPTION_ID is not configured.")
+        self._subscription_id = subscription_id
         self._client: DnsManagementClient = DnsManagementClient(
             DefaultAzureCredential(), subscription_id
         )
 
     def list_zones_by_resource_group(self, resource_group: str) -> list[DnsZone]:
-        """Return all DNS zones in the given resource group."""
+        """Return all DNS zones in the given resource group (CACHED for 5 minutes)."""
         if not resource_group:
             raise ValueError("DNS_RESOURCE_GROUP is not configured.")
-        result = []
-        for zone in self._client.zones.list_by_resource_group(resource_group):
-            zt = zone.zone_type
-            zone_type = zt.value if hasattr(zt, "value") else (str(zt) if zt else "Public")
-            result.append(DnsZone(
-                name=zone.name,
-                resource_group=zone.id.split("/")[4],
-                zone_type=zone_type,
-                record_set_count=zone.number_of_record_sets or 0,
-            ))
-        return result
+        
+        # Cache key changes every 5 minutes (300 seconds)
+        import time
+        cache_key = int(time.time() // 300)
+        
+        return _get_cached_zones(self._subscription_id, resource_group, cache_key)
 
     def list_records_by_zone(
         self,

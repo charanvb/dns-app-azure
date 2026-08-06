@@ -12,11 +12,32 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/zones", response_class=HTMLResponse, include_in_schema=False)
-async def zones_page(request: Request) -> HTMLResponse:
-    """Render the DNS zones page."""
+async def zones_page(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(50, ge=10, le=200, description="Zones per page"),
+    search: str = Query(None, description="Search zone names"),
+) -> HTMLResponse:
+    """Render the DNS zones page with pagination."""
     try:
         dns_service = DnsService(subscription_id=settings.dns_subscription_id)
-        zones = dns_service.list_zones_by_resource_group(settings.dns_resource_group)
+        all_zones = dns_service.list_zones_by_resource_group(settings.dns_resource_group)
+        
+        # Filter by search if provided
+        if search:
+            search_lower = search.lower()
+            all_zones = [z for z in all_zones if search_lower in z.name.lower()]
+        
+        # Sort by name
+        all_zones.sort(key=lambda z: z.name)
+        
+        # Pagination
+        total_zones = len(all_zones)
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        zones = all_zones[start_idx:end_idx]
+        
+        has_more = end_idx < total_zones
         
         return templates.TemplateResponse(
             "zones.html",
@@ -27,6 +48,13 @@ async def zones_page(request: Request) -> HTMLResponse:
                 "environment": settings.environment,
                 "zones": zones,
                 "resource_group": settings.dns_resource_group,
+                "page": page,
+                "per_page": per_page,
+                "total_zones": total_zones,
+                "showing_start": start_idx + 1 if zones else 0,
+                "showing_end": start_idx + len(zones),
+                "has_more": has_more,
+                "search": search or "",
             },
         )
     except Exception as e:
